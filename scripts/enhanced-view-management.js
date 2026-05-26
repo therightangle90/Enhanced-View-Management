@@ -156,7 +156,7 @@ function patchSceneDirectoryCreate() {
   proto._onCreateEntry = async function _onCreateEntryPatched(event) {
     event.preventDefault();
 
-    const directory = game.settings.get(MODULE_ID, SETTINGS.BACKGROUND_IMAGE_DIRECTORY)?.trim();
+    const directory = game.settings.get(MODULE_ID, SETTINGS.BACKGROUND_IMAGE_DIRECTORY).trim();
     const imageChoices = await buildImageChoices(directory);
     const folderChoices = getFolderChoices();
 
@@ -183,8 +183,8 @@ function patchSceneDirectoryCreate() {
       label: game.i18n.localize("SCENES.Create"),
       callback: async html => {
         const form = html[0].querySelector("form");
-        const selectedImage = form.backgroundImage.value?.trim() || "";
-        const enteredName = form.name.value?.trim() || "";
+        const selectedImage = form.backgroundImage.value.trim() || "";
+        const enteredName = form.name.value.trim() || "";
         const name = enteredName || deriveNameFromImage(selectedImage);
 
         if (!name) {
@@ -210,20 +210,20 @@ function prepareSceneData(data = {}) {
   const grid = prepared.grid ?? {};
 
   prepared.navigation ??= game.settings.get(MODULE_ID, SETTINGS.DEFAULT_NAVIGATION);
-  prepared.ownership ??= { default: Number(game.settings.get(MODULE_ID, SETTINGS.DEFAULT_PERMISSION)) };
+  prepared.ownership ??= { default: game.settings.get(MODULE_ID, SETTINGS.DEFAULT_PERMISSION) };
   prepared.backgroundColor ??= game.settings.get(MODULE_ID, SETTINGS.DEFAULT_BACKGROUND_COLOR);
   prepared.initial = {
-    x: initial.x ?? Number(game.settings.get(MODULE_ID, SETTINGS.DEFAULT_INITIAL_X)),
-    y: initial.y ?? Number(game.settings.get(MODULE_ID, SETTINGS.DEFAULT_INITIAL_Y)),
-    scale: initial.scale ?? Number(game.settings.get(MODULE_ID, SETTINGS.DEFAULT_INITIAL_ZOOM))
+    x: initial.x ?? game.settings.get(MODULE_ID, SETTINGS.DEFAULT_INITIAL_X),
+    y: initial.y ?? game.settings.get(MODULE_ID, SETTINGS.DEFAULT_INITIAL_Y),
+    scale: initial.scale ?? game.settings.get(MODULE_ID, SETTINGS.DEFAULT_INITIAL_ZOOM)
   };
   prepared.grid = {
     ...grid,
-    type: grid.type ?? Number(game.settings.get(MODULE_ID, SETTINGS.DEFAULT_GRID_TYPE))
+    type: grid.type ?? game.settings.get(MODULE_ID, SETTINGS.DEFAULT_GRID_TYPE)
   };
-  prepared.width ??= Number(game.settings.get(MODULE_ID, SETTINGS.DEFAULT_WIDTH));
-  prepared.height ??= Number(game.settings.get(MODULE_ID, SETTINGS.DEFAULT_HEIGHT));
-  prepared.padding ??= Number(game.settings.get(MODULE_ID, SETTINGS.DEFAULT_PADDING));
+  prepared.width ??= game.settings.get(MODULE_ID, SETTINGS.DEFAULT_WIDTH);
+  prepared.height ??= game.settings.get(MODULE_ID, SETTINGS.DEFAULT_HEIGHT);
+  prepared.padding ??= game.settings.get(MODULE_ID, SETTINGS.DEFAULT_PADDING);
   prepared.tokenVision ??= game.settings.get(MODULE_ID, SETTINGS.DEFAULT_TOKEN_VISION);
 
   if (!prepared.name?.trim() && prepared.img) {
@@ -265,7 +265,7 @@ async function buildImageChoices(directory) {
   for (const section of listing.sections) {
     choices.push(`<optgroup label="${TextEditor.escapeHTML(section.label)}">`);
     for (const item of section.images) {
-      choices.push(`<option value="${item.path}">\u00A0\u00A0${TextEditor.escapeHTML(item.label)}</option>`);
+      choices.push(`<option value="${item.path}">${TextEditor.escapeHTML(item.label)}</option>`);
     }
     choices.push("</optgroup>");
   }
