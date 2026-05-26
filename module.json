@@ -1,0 +1,21 @@
+{
+  "id": "enhanced-view-management",
+  "title": "Enhanced View Management",
+  "description": "Adds configurable scene defaults and background image selection when creating scenes.",
+  "version": "1.0.0",
+  "compatibility": {
+    "minimum": "11",
+    "verified": "12"
+  },
+  "authors": [
+    {
+      "name": "therightangle90"
+    }
+  ],
+  "esmodules": [
+    "scripts/enhanced-view-management.js"
+  ],
+  "url": "https://github.com/therightangle90/Enhanced-View-Management",
+  "manifest": "",
+  "download": ""
+}
