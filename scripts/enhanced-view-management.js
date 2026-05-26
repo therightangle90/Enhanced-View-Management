@@ -183,8 +183,8 @@ function patchSceneDirectoryCreate() {
       label: game.i18n.localize("SCENES.Create"),
       callback: async html => {
         const form = html[0].querySelector("form");
-        const selectedImage = form.backgroundImage.value.trim() || "";
-        const enteredName = form.name.value.trim() || "";
+        const selectedImage = form.backgroundImage.value.trim();
+        const enteredName = form.name.value.trim();
         const name = enteredName || deriveNameFromImage(selectedImage);
 
         if (!name) {
@@ -210,7 +210,10 @@ function prepareSceneData(data = {}) {
   const grid = prepared.grid ?? {};
 
   prepared.navigation ??= game.settings.get(MODULE_ID, SETTINGS.DEFAULT_NAVIGATION);
-  prepared.ownership ??= { default: game.settings.get(MODULE_ID, SETTINGS.DEFAULT_PERMISSION) };
+  prepared.ownership = {
+    ...(prepared.ownership ?? {}),
+    default: prepared.ownership?.default ?? game.settings.get(MODULE_ID, SETTINGS.DEFAULT_PERMISSION)
+  };
   prepared.backgroundColor ??= game.settings.get(MODULE_ID, SETTINGS.DEFAULT_BACKGROUND_COLOR);
   prepared.initial = {
     x: initial.x ?? game.settings.get(MODULE_ID, SETTINGS.DEFAULT_INITIAL_X),
@@ -322,8 +325,10 @@ function deriveNameFromImage(path) {
 }
 
 function relativeDirName(parent, child) {
-  if (!child.startsWith(parent)) return fileName(child.replace(/\/$/, ""));
-  return child.slice(parent.length).replace(/^\/+/, "").replace(/\/$/, "");
+  const normalizedParent = parent.replace(/\/+$/, "");
+  const normalizedChild = child.replace(/\/+$/, "");
+  if (!normalizedChild.startsWith(`${normalizedParent}/`)) return fileName(normalizedChild);
+  return normalizedChild.slice(normalizedParent.length + 1);
 }
 
 function sortByLabel(a, b) {
