@@ -96,7 +96,7 @@ function registerSettings() {
     config: true,
     type: Number,
     choices: Object.entries(CONST.GRID_TYPES).reduce((choices, [name, value]) => {
-      choices[value] = name;
+      choices[value] = formatGridTypeLabel(name);
       return choices;
     }, {}),
     default: CONST.GRID_TYPES.SQUARE
@@ -153,7 +153,7 @@ function patchSceneDirectoryCreate() {
   if (!proto || proto._enhancedViewManagementPatched) return;
 
   proto._enhancedViewManagementPatched = true;
-  proto._onCreateEntry = async function _onCreateEntryPatched(event) {
+  const createEntryHandler = async function _onCreateEntryPatched(event) {
     event.preventDefault();
 
     const directory = game.settings.get(MODULE_ID, SETTINGS.BACKGROUND_IMAGE_DIRECTORY).trim();
@@ -185,23 +185,35 @@ function patchSceneDirectoryCreate() {
         const form = html[0].querySelector("form");
         const selectedImage = form.backgroundImage.value.trim();
         const enteredName = form.name.value.trim();
-        const name = enteredName || deriveNameFromImage(selectedImage);
-
-        if (!name) {
-          ui.notifications.warn(game.i18n.localize("EVM.NameOrImageRequired"));
-          return null;
-        }
-
         const sceneData = prepareSceneData({
-          name,
+          name: enteredName,
           folder: form.folder.value || null,
           img: selectedImage || null
         });
+
+        if (!sceneData.name) {
+          ui.notifications.warn(game.i18n.localize("EVM.NameOrImageRequired"));
+          return null;
+        }
 
         return Scene.create(sceneData);
       }
     });
   };
+
+  if (globalThis.libWrapper?.register) {
+    libWrapper.register(
+      MODULE_ID,
+      "SceneDirectory.prototype._onCreateEntry",
+      function _onCreateEntryWrapped(_wrapped, event) {
+        return createEntryHandler.call(this, event);
+      },
+      "MIXED"
+    );
+    return;
+  }
+
+  proto._onCreateEntry = createEntryHandler;
 }
 
 function prepareSceneData(data = {}) {
@@ -327,8 +339,15 @@ function deriveNameFromImage(path) {
 function relativeDirName(parent, child) {
   const normalizedParent = parent.replace(/\/+$/, "");
   const normalizedChild = child.replace(/\/+$/, "");
-  if (!normalizedChild.startsWith(`${normalizedParent}/`)) return fileName(normalizedChild);
+  if (!normalizedChild.startsWith(`${normalizedParent}/`)) return normalizedChild;
   return normalizedChild.slice(normalizedParent.length + 1);
+}
+
+function formatGridTypeLabel(name) {
+  return name
+    .toLowerCase()
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, char => char.toUpperCase());
 }
 
 function sortByLabel(a, b) {
