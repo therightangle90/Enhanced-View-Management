@@ -333,7 +333,7 @@ function deriveNameFromImage(path) {
   if (!path) return "";
   const filename = fileName(path);
   const lastDot = filename.lastIndexOf(".");
-  return lastDot > 0 ? filename.slice(0, lastDot) : filename;
+  return lastDot >= 0 ? filename.slice(0, lastDot) : filename;
 }
 
 function relativeDirName(parent, child) {
@@ -350,10 +350,9 @@ function formatGridTypeLabel(name) {
     .replace(/\b\w/g, char => char.toUpperCase());
 }
 
-function sortByLabel(a, b) {
-  return a.label.localeCompare(b.label, undefined, { sensitivity: "base" });
-}
+const sortByLabel = createSorter(item => item.label);
+const sortByPathName = createSorter(item => fileName(item));
 
-function sortByPathName(a, b) {
-  return fileName(a).localeCompare(fileName(b), undefined, { sensitivity: "base" });
+function createSorter(keyFn) {
+  return (a, b) => keyFn(a).localeCompare(keyFn(b), undefined, { sensitivity: "base" });
 }
