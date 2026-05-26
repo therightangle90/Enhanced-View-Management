@@ -15,5 +15,12 @@
   "esmodules": [
     "scripts/enhanced-view-management.js"
   ],
+  "languages": [
+    {
+      "lang": "en",
+      "name": "English",
+      "path": "lang/en.json"
+    }
+  ],
   "url": "https://github.com/therightangle90/Enhanced-View-Management"
 }

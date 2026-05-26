@@ -54,8 +54,8 @@ function registerSettings() {
   });
 
   game.settings.register(MODULE_ID, SETTINGS.DEFAULT_BACKGROUND_COLOR, {
-    name: "Default background colour",
-    hint: "Set the default background colour for newly created scenes.",
+    name: "Default background color",
+    hint: "Set the default background color for newly created scenes.",
     scope: "world",
     config: true,
     type: String,
@@ -149,7 +149,7 @@ function registerSettings() {
 }
 
 function patchSceneDirectoryCreate() {
-  const proto = SceneDirectory?.prototype;
+  const proto = SceneDirectory.prototype;
   if (!proto || proto._enhancedViewManagementPatched) return;
 
   proto._enhancedViewManagementPatched = true;
@@ -171,7 +171,7 @@ function patchSceneDirectoryCreate() {
           <select name="folder">${folderChoices}</select>
         </div>
         <div class="form-group">
-          <label>Background image</label>
+          <label>${game.i18n.localize("EVM.BackgroundImage")}</label>
           <select name="backgroundImage">${imageChoices}</select>
         </div>
       </form>
@@ -188,7 +188,7 @@ function patchSceneDirectoryCreate() {
         const name = enteredName || deriveNameFromImage(selectedImage);
 
         if (!name) {
-          ui.notifications.warn("Please provide a scene name or choose a background image.");
+          ui.notifications.warn(game.i18n.localize("EVM.NameOrImageRequired"));
           return null;
         }
 
@@ -249,7 +249,7 @@ function getFolderChoices() {
 }
 
 async function buildImageChoices(directory) {
-  const choices = ["<option value=\"\">None</option>"];
+  const choices = [`<option value="">${game.i18n.localize("None")}</option>`];
   if (!directory) return choices.join("");
 
   let listing;
@@ -257,7 +257,7 @@ async function buildImageChoices(directory) {
     listing = await collectImageListing(directory);
   } catch (error) {
     console.warn(`${MODULE_ID} | Failed to browse image directory`, error);
-    ui.notifications.warn(`Could not browse background image directory: ${directory}`);
+    ui.notifications.warn(game.i18n.format("EVM.BrowseDirectoryFailed", { directory }));
     return choices.join("");
   }
 

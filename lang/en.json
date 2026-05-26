@@ -1,0 +1,5 @@
+{
+  "EVM.BackgroundImage": "Background image",
+  "EVM.NameOrImageRequired": "Please provide a scene name or choose a background image.",
+  "EVM.BrowseDirectoryFailed": "Could not browse background image directory: {directory}"
+}
