@@ -164,11 +164,6 @@ function prepareSceneData(data = {}) {
   prepared.padding ??= game.settings.get(MODULE_ID, SETTINGS.DEFAULT_PADDING);
   prepared.tokenVision ??= game.settings.get(MODULE_ID, SETTINGS.DEFAULT_TOKEN_VISION);
 
-  const backgroundPath = getBackgroundImagePath(prepared);
-  if (!prepared.name?.trim() && backgroundPath) {
-    prepared.name = deriveNameFromImage(backgroundPath);
-  }
-
   return prepared;
 }
 
@@ -293,34 +288,40 @@ async function showCreateSceneDialog(initialData = {}, options = {}) {
           label: game.i18n.localize("SCENES.Create"),
           callback: async html => {
             const form = resolveDialogForm(html);
-            if (!form) { resolve(null); return; }
+            if (!form) {
+              resolve(null);
+              return;
+            }
 
             const nameInput = form.querySelector('input[name="name"]');
             const folderInput = form.querySelector('select[name="folder"]');
             const imageInput = form.querySelector('select[name="backgroundImage"]');
 
-            const selectedImage = imageInput?.value?.trim() ?? "";
             const enteredName = nameInput?.value?.trim() ?? "";
-            const derivedName = enteredName || deriveNameFromImage(selectedImage);
-
-            if (!derivedName) {
-              ui.notifications.warn(game.i18n.localize("EVM.NameOrImageRequired"));
+            if (!enteredName) {
+              ui.notifications.warn(game.i18n.localize("EVM.NameRequired"));
               resolve(null);
               return;
             }
 
-            const sceneData = prepareSceneData({
-              name: derivedName,
-              folder: folderInput?.value || null,
-              background: selectedImage ? { src: selectedImage } : {}
-            });
+            const selectedImage = imageInput?.value?.trim() ?? "";
+            const sceneData = {
+              name: enteredName,
+              folder: folderInput?.value || null
+            };
+            if (selectedImage) sceneData.background = { src: selectedImage };
 
-            resolve(await Scene.create(sceneData));
+            resolve(await Scene.create(prepareSceneData(sceneData)));
           }
+        },
+        cancel: {
+          icon: '<i class="fas fa-times"></i>',
+          label: game.i18n.localize("Cancel"),
+          callback: () => resolve(null)
         }
       },
-      close: () => resolve(null),
-      default: "create"
+      default: "create",
+      close: () => resolve(null)
     }).render(true);
   });
 }
@@ -354,16 +355,6 @@ function fileName(path) {
   return path.split("/").pop() ?? path;
 }
 
-function deriveNameFromImage(path) {
-  if (!path) return "";
-  const filename = fileName(path);
-  const lastDot = filename.lastIndexOf(".");
-  return lastDot >= 0 ? filename.slice(0, lastDot) : filename;
-}
-
-function getBackgroundImagePath(data) {
-  return data.background?.src?.trim() || data.img?.trim() || "";
-}
 
 function relativeDirName(parent, child) {
   const normalizedParent = parent.replace(/\/+$/, "");
