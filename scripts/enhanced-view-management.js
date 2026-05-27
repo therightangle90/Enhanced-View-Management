@@ -19,6 +19,7 @@ const PATCHED_SCENE_CLASSES = new WeakSet();
 
 Hooks.once("init", () => {
   registerSettings();
+  patchSceneCreateDialog();
 });
 Hooks.once("ready", () => {
   patchSceneCreateDialog();
@@ -248,16 +249,21 @@ function patchSceneCreateDialog() {
   PATCHED_SCENE_CLASSES.add(SceneClass);
   SceneClass.createDialog = async function createDialogPatched(data = {}, options = {}) {
     if (!game.user?.isGM) return originalCreateDialog.call(this, data, options);
-    return showCreateSceneDialog(data, options);
+    try {
+      return await showCreateSceneDialog(data, options);
+    } catch (error) {
+      console.error(`${MODULE_ID} | Error showing custom create-scene dialog, falling back to default`, error);
+      return originalCreateDialog.call(this, data, options);
+    }
   };
 }
 
-async function showCreateSceneDialog(initialData = {}, _options = {}) {
+async function showCreateSceneDialog(initialData = {}, options = {}) {
   const directory = game.settings.get(MODULE_ID, SETTINGS.BACKGROUND_IMAGE_DIRECTORY).trim();
   const initialImage = initialData.background?.src?.trim() || initialData.img?.trim() || "";
   const imageChoices = await buildImageChoices(directory, initialImage);
   const initialName = initialData.name?.trim() || "";
-  const initialFolder = initialData.folder ?? "";
+  const initialFolder = options.folder ?? initialData.folder ?? null;
   const folderChoices = getFolderChoices(initialFolder);
 
   const content = `
@@ -277,35 +283,45 @@ async function showCreateSceneDialog(initialData = {}, _options = {}) {
     </form>
   `;
 
-  return Dialog.prompt({
-    title: game.i18n.localize("SCENES.Create"),
-    content,
-    label: game.i18n.localize("SCENES.Create"),
-    callback: async html => {
-      const form = resolveDialogForm(html);
-      if (!form) return null;
+  return new Promise(resolve => {
+    new Dialog({
+      title: game.i18n.localize("SCENES.Create"),
+      content,
+      buttons: {
+        create: {
+          icon: '<i class="fas fa-check"></i>',
+          label: game.i18n.localize("SCENES.Create"),
+          callback: async html => {
+            const form = resolveDialogForm(html);
+            if (!form) { resolve(null); return; }
 
-      const nameInput = form.querySelector('input[name="name"]');
-      const folderInput = form.querySelector('select[name="folder"]');
-      const imageInput = form.querySelector('select[name="backgroundImage"]');
+            const nameInput = form.querySelector('input[name="name"]');
+            const folderInput = form.querySelector('select[name="folder"]');
+            const imageInput = form.querySelector('select[name="backgroundImage"]');
 
-      const selectedImage = imageInput?.value?.trim() ?? "";
-      const enteredName = nameInput?.value?.trim() ?? "";
-      const derivedName = enteredName || deriveNameFromImage(selectedImage);
+            const selectedImage = imageInput?.value?.trim() ?? "";
+            const enteredName = nameInput?.value?.trim() ?? "";
+            const derivedName = enteredName || deriveNameFromImage(selectedImage);
 
-      if (!derivedName) {
-        ui.notifications.warn(game.i18n.localize("EVM.NameOrImageRequired"));
-        return null;
-      }
+            if (!derivedName) {
+              ui.notifications.warn(game.i18n.localize("EVM.NameOrImageRequired"));
+              resolve(null);
+              return;
+            }
 
-      const sceneData = prepareSceneData({
-        name: derivedName,
-        folder: folderInput?.value || null,
-        background: selectedImage ? { src: selectedImage } : {}
-      });
+            const sceneData = prepareSceneData({
+              name: derivedName,
+              folder: folderInput?.value || null,
+              background: selectedImage ? { src: selectedImage } : {}
+            });
 
-      return Scene.create(sceneData);
-    }
+            resolve(await Scene.create(sceneData));
+          }
+        }
+      },
+      close: () => resolve(null),
+      default: "create"
+    }).render(true);
   });
 }
 
