@@ -87,7 +87,7 @@ Hooks.on("renderDialog", (app, html) => {
         "4px 0 0 0"
     });
 
-  html.parent()
+  html
     .css({
       "padding-bottom": "4px"
     });
