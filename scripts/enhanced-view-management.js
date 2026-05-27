@@ -374,11 +374,11 @@ async function openDirectoryPicker(input) {
     input.dispatchEvent(new Event("change", { bubbles: true }));
   };
 
-  const current = await resolvePickerDirectory(configured.path, configured.source);
+  const resolved = await resolvePickerDirectory(configured.path, configured.source);
   picker = new FilePicker({
     type: "folder",
-    activeSource: configured.source,
-    current,
+    activeSource: resolved.source,
+    current: resolved.path,
     callback
   });
   picker.render(true);
@@ -393,21 +393,20 @@ function resolveDialogForm(html) {
 
 async function resolvePickerDirectory(path, source = "data") {
   const normalized = normalizeDirectoryPath(path);
-  if (!normalized) return "";
+  if (!normalized) return { source, path: "" };
 
   let current = normalized;
   let activeSource = source;
   while (current) {
     try {
       const result = await browseDirectoryWithFallback(activeSource, current);
-      activeSource = result.source;
-      return current;
+      return { source: result.source, path: current };
     } catch (_error) {
       current = parentDirectory(current);
     }
   }
 
-  return "";
+  return { source: activeSource, path: "" };
 }
 
 function normalizeDirectoryPath(path) {
