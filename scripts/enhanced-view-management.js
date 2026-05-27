@@ -20,6 +20,9 @@ Hooks.once("init", () => {
   registerSettings();
   patchSceneCreateDialog();
 });
+Hooks.once("ready", () => {
+  patchSceneCreateDialog();
+});
 
 Hooks.on("renderSettingsConfig", (_app, html) => {
   addBackgroundDirectoryBrowseButton(html);
@@ -234,7 +237,9 @@ async function collectFromSubdirectory(source, directory, label, sections) {
 }
 
 function patchSceneCreateDialog() {
-  const SceneClass = globalThis.Scene;
+  const SceneClass = globalThis.CONFIG?.Scene?.documentClass
+    || globalThis.getDocumentClass?.("Scene")
+    || globalThis.Scene;
   if (!SceneClass || SceneClass._evmCreateDialogPatched) return;
 
   const originalCreateDialog = SceneClass.createDialog;
