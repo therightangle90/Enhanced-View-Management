@@ -355,7 +355,6 @@ function fileName(path) {
   return path.split("/").pop() ?? path;
 }
 
-
 function relativeDirName(parent, child) {
   const normalizedParent = parent.replace(/\/+$/, "");
   const normalizedChild = child.replace(/\/+$/, "");
