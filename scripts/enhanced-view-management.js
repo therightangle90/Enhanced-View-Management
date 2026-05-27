@@ -11,7 +11,8 @@ const SETTINGS = {
   DEFAULT_HEIGHT: "defaultHeight",
   DEFAULT_PADDING: "defaultPadding",
   DEFAULT_TOKEN_VISION: "defaultTokenVision",
-  BACKGROUND_IMAGE_DIRECTORY: "backgroundImageDirectory"
+  BACKGROUND_IMAGE_DIRECTORY: "backgroundImageDirectory",
+  WARN_SCENE_DELETE: "warnSceneDelete"
 };
 
 const IMAGE_EXTENSIONS = /\.(jpe?g|png|webp)$/i;
@@ -19,6 +20,7 @@ const IMAGE_EXTENSIONS = /\.(jpe?g|png|webp)$/i;
 Hooks.once("init", () => {
   registerSettings();
   patchSceneCreateDialog();
+  patchSceneDelete();
 });
 
 Hooks.on("renderSettingsConfig", (_app, html) => {
@@ -101,8 +103,7 @@ Hooks.on("renderDialog", (app, html) => {
 
 });
 
-Hooks.on(
-  "preCreateScene",
+Hooks.on("preCreateScene",
   (scene, data) => {
 
     const prepared =
@@ -123,6 +124,60 @@ Hooks.on(
     }
   }
 );
+
+function patchSceneDelete() {
+
+  const proto =
+    SceneDirectory?.prototype;
+
+  if (
+    !proto ||
+    typeof proto._onDeleteEntry !==
+    "function"
+  ) return;
+
+  if (
+    proto._onDeleteEntry
+      .__evmPatched
+  ) return;
+
+  const original =
+    proto._onDeleteEntry;
+
+  proto._onDeleteEntry =
+    async function (li) {
+
+      if (
+        !game.settings.get(
+          MODULE_ID,
+          SETTINGS.WARN_SCENE_DELETE
+        )
+      ) {
+
+        const documentId =
+          li instanceof jQuery
+            ? li.data("document-id")
+            : li?.dataset?.documentId;
+
+        const scene =
+          game.scenes?.get(
+            documentId
+          );
+
+        if (scene) {
+          return scene.delete();
+        }
+      }
+
+      return original.call(
+        this,
+        li
+      );
+    };
+
+  proto._onDeleteEntry
+    .__evmPatched = true;
+}
 
 function patchSceneCreateDialog() {
 
@@ -164,7 +219,7 @@ function patchSceneCreateDialog() {
 function registerSettings() {
 
   for (
-    const setting of [
+    const [key, type, def] of [
 
       [SETTINGS.DEFAULT_NAVIGATION, Boolean, true],
       [SETTINGS.DEFAULT_BACKGROUND_COLOR, String, "#000000"],
@@ -175,19 +230,27 @@ function registerSettings() {
       [SETTINGS.DEFAULT_HEIGHT, Number, 3000],
       [SETTINGS.DEFAULT_PADDING, Number, 0.25],
       [SETTINGS.DEFAULT_TOKEN_VISION, Boolean, false],
-      [SETTINGS.BACKGROUND_IMAGE_DIRECTORY, String, ""]
+      [SETTINGS.BACKGROUND_IMAGE_DIRECTORY, String, ""],
+      [SETTINGS.WARN_SCENE_DELETE, Boolean, true]
 
     ]
   ) {
 
+    const localizedKeyBase = key
+      .charAt(0)
+      .toUpperCase() +
+      key.slice(1);
+
     game.settings.register(
       MODULE_ID,
-      setting[0],
+      key,
       {
+        name: `EVM.Settings.${localizedKeyBase}.Name`,
+        hint: `EVM.Settings.${localizedKeyBase}.Hint`,
         scope: "world",
         config: true,
-        type: setting[1],
-        default: setting[2]
+        type,
+        default: def
       }
     );
   }
@@ -196,6 +259,8 @@ function registerSettings() {
     MODULE_ID,
     SETTINGS.DEFAULT_GRID_TYPE,
     {
+      name: "EVM.Settings.DefaultGridType.Name",
+      hint: "EVM.Settings.DefaultGridType.Hint",
       scope: "world",
       config: true,
       type: Number,
@@ -680,7 +745,50 @@ function fileName(
 
 function addBackgroundDirectoryBrowseButton(
   html
-) {}
+) {
+
+  const input =
+    html.find(
+      `input[name="${MODULE_ID}.${SETTINGS.BACKGROUND_IMAGE_DIRECTORY}"]`
+    );
+
+  if (!input.length) return;
+
+  const button = $(
+    `<button type="button" style="width:auto;margin-left:4px" title="${game.i18n.localize("EVM.BrowseDirectories")}">` +
+    `<i class="fas fa-folder-open"></i>` +
+    `</button>`
+  );
+
+  button.on("click", async () => {
+
+    const current =
+      input.val()?.trim() || "";
+
+    const picker =
+      new FilePicker({
+        type: "folder",
+        current,
+        callback: path => {
+          input.val(path).trigger("change");
+        }
+      });
+
+    picker.render(true);
+  });
+
+  input.after(button);
+
+  input
+    .closest(".form-group")
+    .find(
+      ".form-fields"
+    )
+    .css({
+      display: "flex",
+      "align-items": "center"
+    });
+}
 
 function formatGridTypeLabel(
   name
