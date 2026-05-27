@@ -63,7 +63,7 @@ Hooks.on("renderDialog", (app, html) => {
       display: "grid",
       "grid-template-columns":
         "180px 1fr",
-      gap: "8px",
+      gap: "4px",
       "align-items":
         "center",
       margin:
@@ -84,7 +84,7 @@ Hooks.on("renderDialog", (app, html) => {
       "justify-content":
         "flex-end",
       margin:
-        "8px 0 0 0"
+        "4px 0 0 0"
     });
 
   html.parent()
