@@ -15,10 +15,10 @@ const SETTINGS = {
 };
 
 const IMAGE_EXTENSIONS = /\.(apng|avif|bmp|gif|jpe?g|png|svg|webp)$/i;
+const PATCHED_SCENE_CLASSES = new WeakSet();
 
 Hooks.once("init", () => {
   registerSettings();
-  patchSceneCreateDialog();
 });
 Hooks.once("ready", () => {
   patchSceneCreateDialog();
@@ -240,12 +240,12 @@ function patchSceneCreateDialog() {
   const SceneClass = globalThis.CONFIG?.Scene?.documentClass
     || globalThis.getDocumentClass?.("Scene")
     || globalThis.Scene;
-  if (!SceneClass || SceneClass._evmCreateDialogPatched) return;
+  if (!SceneClass || PATCHED_SCENE_CLASSES.has(SceneClass)) return;
 
   const originalCreateDialog = SceneClass.createDialog;
   if (typeof originalCreateDialog !== "function") return;
 
-  SceneClass._evmCreateDialogPatched = true;
+  PATCHED_SCENE_CLASSES.add(SceneClass);
   SceneClass.createDialog = async function createDialogPatched(data = {}, options = {}) {
     if (!game.user?.isGM) return originalCreateDialog.call(this, data, options);
     return showCreateSceneDialog(data, options);
@@ -456,7 +456,7 @@ function formatDirectorySettingValue(source, path) {
 }
 
 async function browseDirectoryWithFallback(source, directory) {
-  const candidates = [...new Set([source, "data", "public"].filter(Boolean))];
+  const candidates = [...new Set([source, "data", "public"])];
   let lastError;
   for (const candidate of candidates) {
     try {
