@@ -26,6 +26,7 @@ Hooks.on("renderSceneDirectory", (_app, html) => {
   createBtn.off("click").on("click", ev => {
     ev.preventDefault();
     ev.stopImmediatePropagation();
+    ui.notifications.info("i clicked new scene");
     showCreateSceneDialog();
   });
 });
@@ -241,6 +242,7 @@ async function showCreateSceneDialog() {
 
   const content = `
     <form>
+      <p>Copilot is fucking useless</p>
       <div class="form-group">
         <label>${game.i18n.localize("Name")}</label>
         <input id="evm-scene-name" type="text" placeholder="${game.i18n.localize("Name")}" />
