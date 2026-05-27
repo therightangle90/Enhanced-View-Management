@@ -23,10 +23,6 @@ Hooks.once("init", () => {
   patchSceneDeleteDialog();
 });
 
-Hooks.on("renderSettingsConfig", (_app, html) => {
-  addBackgroundDirectoryBrowseButton(html);
-});
-
 Hooks.on("renderDialog", (app, html) => {
 
   if (app.title !== "Create New Scene") return;
@@ -606,8 +602,8 @@ None
 ${
 playlists.map(
 p =>
-`<option value="${p.id}">
-${p.name}
+`<option value="${escapeAttribute(p.id)}">
+${escapeHtml(p.name)}
 </option>`
 ).join("")
 }
@@ -809,7 +805,7 @@ async function buildImageChoices(
       files.length
     ) {
       choices.push(
-`<optgroup label="${decodeURIComponent(group)}">`
+`<optgroup label="${escapeAttribute(decodeURIComponent(group))}">`
       );
     }
 
@@ -819,8 +815,8 @@ async function buildImageChoices(
     ) {
 
       choices.push(
-`<option value="${file}">
-${displayFileName(file)}
+`<option value="${escapeAttribute(file)}">
+${escapeHtml(displayFileName(file))}
 </option>`
       );
     }
@@ -880,8 +876,8 @@ None
     )
     .map(
       f =>
-`<option value="${f.id}">
-${f.name}
+`<option value="${escapeAttribute(f.id)}">
+${escapeHtml(f.name)}
 </option>`
     )
 
@@ -913,9 +909,46 @@ function fileName(
     path;
 }
 
-function addBackgroundDirectoryBrowseButton(
-  html
-) {}
+function escapeAttribute(
+  value
+) {
+
+  return String(
+    value ?? ""
+  )
+  .replace(
+    /&/g,
+    "&amp;"
+  )
+  .replace(
+    /"/g,
+    "&quot;"
+  )
+  .replace(
+    /'/g,
+    "&#39;"
+  )
+  .replace(
+    /</g,
+    "&lt;"
+  )
+  .replace(
+    />/g,
+    "&gt;"
+  );
+}
+
+function escapeHtml(
+  value
+) {
+
+  return TextEditor
+    .escapeHTML(
+      String(
+        value ?? ""
+      )
+    );
+}
 
 function formatGridTypeLabel(
   name
