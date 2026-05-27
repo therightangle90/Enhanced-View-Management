@@ -18,35 +18,7 @@ const IMAGE_EXTENSIONS = /\.(apng|avif|bmp|gif|jpe?g|png|svg|webp)$/i;
 
 Hooks.once("init", () => {
   registerSettings();
-});
-
-Hooks.on("renderSceneDirectory", (_app, html) => {
-  if (!game.user?.isGM) return;
-
-  // Support both a jQuery wrapper and a plain HTMLElement (varies by Foundry version)
-  const root = html instanceof jQuery ? html[0] : html;
-  if (!root) return;
-
-  // Cover all known button selectors across Foundry v11 and v12
-  const selectors = [
-    'button[data-action="createDocument"]',
-    'button[data-action="create"]',
-    '.create-entity',
-    'a.create-entity'
-  ].join(", ");
-
-  root.querySelectorAll(selectors).forEach(btn => {
-    // Clone + replace to strip every existing event listener (native and jQuery alike)
-    // so Foundry's default create-scene dialog can never open alongside ours.
-    const clone = btn.cloneNode(true);
-    btn.replaceWith(clone);
-    clone.addEventListener("click", ev => {
-      ev.preventDefault();
-      ev.stopImmediatePropagation();
-      ui.notifications.info("i clicked new scene");
-      showCreateSceneDialog();
-    });
-  });
+  patchSceneCreateDialog();
 });
 
 Hooks.on("renderSettingsConfig", (_app, html) => {
@@ -58,6 +30,21 @@ Hooks.on("preCreateScene", (scene, data) => {
   const diff = foundry.utils.diffObject(data, prepared);
   if (!foundry.utils.isEmpty(diff)) scene.updateSource(diff);
 });
+
+function patchSceneCreateDialog() {
+  const originalCreateDialog = Scene.createDialog;
+  if (typeof originalCreateDialog !== "function") return;
+  if (Scene.createDialog.__evmPatched) return;
+
+  const patchedCreateDialog = function (...args) {
+    ui.notifications.info("i clicked new scene");
+    return showCreateSceneDialog(...args);
+  };
+
+  patchedCreateDialog.__evmPatched = true;
+  patchedCreateDialog.__evmOriginal = originalCreateDialog;
+  Scene.createDialog = patchedCreateDialog;
+}
 
 function registerSettings() {
   game.settings.register(MODULE_ID, SETTINGS.DEFAULT_NAVIGATION, {
