@@ -15,14 +15,19 @@ const SETTINGS = {
 };
 
 const IMAGE_EXTENSIONS = /\.(apng|avif|bmp|gif|jpe?g|png|svg|webp)$/i;
-const PATCHED_SCENE_CLASSES = new WeakSet();
 
 Hooks.once("init", () => {
   registerSettings();
-  patchSceneCreateDialog();
 });
-Hooks.once("ready", () => {
-  patchSceneCreateDialog();
+
+Hooks.on("renderSceneDirectory", (_app, html) => {
+  if (!game.user?.isGM) return;
+  const createBtn = html.find('button[data-action="create"], .create-entity, a.create-entity');
+  createBtn.off("click").on("click", ev => {
+    ev.preventDefault();
+    ev.stopImmediatePropagation();
+    showCreateSceneDialog();
+  });
 });
 
 Hooks.on("renderSettingsConfig", (_app, html) => {
@@ -167,9 +172,8 @@ function prepareSceneData(data = {}) {
   return prepared;
 }
 
-async function buildImageChoices(directory, selectedImage = "") {
-  const selectedPath = selectedImage?.trim() ?? "";
-  const choices = [`<option value=""${selectedPath ? "" : " selected"}>${game.i18n.localize("None")}</option>`];
+async function buildImageChoices(directory) {
+  const choices = [`<option value="">${game.i18n.localize("None")}</option>`];
   const configured = parseDirectorySetting(directory);
   if (!configured.path) return choices.join("");
 
@@ -183,15 +187,13 @@ async function buildImageChoices(directory, selectedImage = "") {
   }
 
   for (const item of listing.root) {
-    const selected = item.path === selectedPath ? " selected" : "";
-    choices.push(`<option value="${escapeAttribute(item.path)}"${selected}>${TextEditor.escapeHTML(item.label)}</option>`);
+    choices.push(`<option value="${escapeAttribute(item.path)}">${TextEditor.escapeHTML(item.label)}</option>`);
   }
 
   for (const section of listing.sections) {
     choices.push(`<optgroup label="${escapeAttribute(section.label)}">`);
     for (const item of section.images) {
-      const selected = item.path === selectedPath ? " selected" : "";
-      choices.push(`<option value="${escapeAttribute(item.path)}"${selected}>${TextEditor.escapeHTML(item.label)}</option>`);
+      choices.push(`<option value="${escapeAttribute(item.path)}">${TextEditor.escapeHTML(item.label)}</option>`);
     }
     choices.push("</optgroup>");
   }
@@ -232,54 +234,30 @@ async function collectFromSubdirectory(source, directory, label, sections) {
   }
 }
 
-function patchSceneCreateDialog() {
-  const SceneClass = globalThis.CONFIG?.Scene?.documentClass
-    || globalThis.getDocumentClass?.("Scene")
-    || globalThis.Scene;
-  if (!SceneClass || PATCHED_SCENE_CLASSES.has(SceneClass)) return;
-
-  const originalCreateDialog = SceneClass.createDialog;
-  if (typeof originalCreateDialog !== "function") return;
-
-  PATCHED_SCENE_CLASSES.add(SceneClass);
-  SceneClass.createDialog = async function createDialogPatched(data = {}, options = {}) {
-    if (!game.user?.isGM) return originalCreateDialog.call(this, data, options);
-    try {
-      return await showCreateSceneDialog(data, options);
-    } catch (error) {
-      console.error(`${MODULE_ID} | Error showing custom create-scene dialog, falling back to default`, error);
-      return originalCreateDialog.call(this, data, options);
-    }
-  };
-}
-
-async function showCreateSceneDialog(initialData = {}, options = {}) {
+async function showCreateSceneDialog() {
   const directory = game.settings.get(MODULE_ID, SETTINGS.BACKGROUND_IMAGE_DIRECTORY).trim();
-  const initialImage = initialData.background?.src?.trim() || initialData.img?.trim() || "";
-  const imageChoices = await buildImageChoices(directory, initialImage);
-  const initialName = initialData.name?.trim() || "";
-  const initialFolder = options.folder ?? initialData.folder ?? null;
-  const folderChoices = getFolderChoices(initialFolder);
+  const imageChoices = await buildImageChoices(directory);
+  const folderChoices = getFolderChoices();
 
   const content = `
     <form>
       <div class="form-group">
         <label>${game.i18n.localize("Name")}</label>
-        <input type="text" name="name" value="${escapeAttribute(initialName)}" />
+        <input id="evm-scene-name" type="text" placeholder="${game.i18n.localize("Name")}" />
       </div>
       <div class="form-group">
         <label>${game.i18n.localize("FOLDER.Folder")}</label>
-        <select name="folder">${folderChoices}</select>
+        <select id="evm-scene-folder">${folderChoices}</select>
       </div>
       <div class="form-group">
         <label>${game.i18n.localize("EVM.BackgroundImage")}</label>
-        <select name="backgroundImage">${imageChoices}</select>
+        <select id="evm-scene-background">${imageChoices}</select>
       </div>
     </form>
   `;
 
   return new Promise(resolve => {
-    new Dialog({
+    const d = new Dialog({
       title: game.i18n.localize("SCENES.Create"),
       content,
       buttons: {
@@ -287,28 +265,17 @@ async function showCreateSceneDialog(initialData = {}, options = {}) {
           icon: '<i class="fas fa-check"></i>',
           label: game.i18n.localize("SCENES.Create"),
           callback: async html => {
-            const form = resolveDialogForm(html);
-            if (!form) {
-              resolve(null);
-              return;
-            }
-
-            const nameInput = form.querySelector('input[name="name"]');
-            const folderInput = form.querySelector('select[name="folder"]');
-            const imageInput = form.querySelector('select[name="backgroundImage"]');
-
-            const enteredName = nameInput?.value?.trim() ?? "";
+            const enteredName = html.find("#evm-scene-name").val().trim();
             if (!enteredName) {
               ui.notifications.warn(game.i18n.localize("EVM.NameRequired"));
               resolve(null);
               return;
             }
 
-            const selectedImage = imageInput?.value?.trim() ?? "";
-            const sceneData = {
-              name: enteredName,
-              folder: folderInput?.value || null
-            };
+            const selectedFolder = html.find("#evm-scene-folder").val() || null;
+            const selectedImage = html.find("#evm-scene-background").val() || "";
+
+            const sceneData = { name: enteredName, folder: selectedFolder };
             if (selectedImage) sceneData.background = { src: selectedImage };
 
             resolve(await Scene.create(prepareSceneData(sceneData)));
@@ -321,20 +288,14 @@ async function showCreateSceneDialog(initialData = {}, options = {}) {
         }
       },
       default: "create",
-      close: () => resolve(null)
-    }).render(true);
+      close: () => resolve(null),
+      render: html => html.find("#evm-scene-name").trigger("focus")
+    });
+    d.render(true);
   });
 }
 
-function resolveDialogForm(html) {
-  if (!html) return null;
-  if (html instanceof HTMLFormElement) return html;
-  const root = html?.[0] ?? html;
-  if (root instanceof HTMLFormElement) return root;
-  return root?.querySelector?.("form") ?? null;
-}
-
-function getFolderChoices(selectedFolderId = "") {
+function getFolderChoices(selectedFolderId = null) {
   const folders = game.folders.contents
     .filter(folder => folder.type === "Scene")
     .sort((a, b) => a.name.localeCompare(b.name));
