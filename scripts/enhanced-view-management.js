@@ -15,7 +15,9 @@ const SETTINGS = {
   WARN_SCENE_DELETE: "warnSceneDelete"
 };
 
-const IMAGE_EXTENSIONS = /\.(jpe?g|png|webp)$/i;
+const IMAGE_EXTENSIONS = /\.(apng|avif|bmp|gif|jpe?g|png|svg|webp)$/i;
+const MIN_DIALOG_WIDTH = 420;
+const PIXELS_PER_CHARACTER = 7;
 
 Hooks.once("init", () => {
   registerSettings();
@@ -37,7 +39,7 @@ Hooks.on("renderDialog", (app, html) => {
   const root =
     html.closest(".app");
 
-  let widest = 420;
+  let widest = MIN_DIALOG_WIDTH;
 
   html.find("option").each(
     (_i, el) => {
@@ -51,7 +53,7 @@ Hooks.on("renderDialog", (app, html) => {
       widest =
         Math.max(
           widest,
-          260 + (len * 7)
+          260 + (len * PIXELS_PER_CHARACTER)
         );
     }
   );
