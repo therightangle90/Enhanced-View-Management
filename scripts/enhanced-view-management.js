@@ -21,6 +21,10 @@ Hooks.once("init", () => {
   patchSceneDirectoryCreate();
 });
 
+Hooks.once("ready", () => {
+  patchSceneDirectoryCreate();
+});
+
 Hooks.on("renderSettingsConfig", (_app, html) => {
   addBackgroundDirectoryBrowseButton(html);
 });
@@ -137,10 +141,6 @@ function registerSettings() {
 }
 
 function patchSceneDirectoryCreate() {
-  const proto = SceneDirectory.prototype;
-  if (!proto || proto._enhancedViewManagementPatched) return;
-
-  proto._enhancedViewManagementPatched = true;
   const createEntryHandler = async function _onCreateEntryPatched(event) {
     event?.preventDefault?.();
 
@@ -193,19 +193,12 @@ function patchSceneDirectoryCreate() {
     });
   };
 
-  if (globalThis.libWrapper?.register) {
-    libWrapper.register(
-      MODULE_ID,
-      "SceneDirectory.prototype._onCreateEntry",
-      function _onCreateEntryWrapped(_wrapped, event) {
-        return createEntryHandler.call(this, event);
-      },
-      "MIXED"
-    );
-    return;
+  for (const SceneDirectoryClass of getSceneDirectoryClasses()) {
+    const proto = SceneDirectoryClass.prototype;
+    if (!proto || proto._enhancedViewManagementPatched) continue;
+    proto._enhancedViewManagementPatched = true;
+    proto._onCreateEntry = createEntryHandler;
   }
-
-  proto._onCreateEntry = createEntryHandler;
 }
 
 function prepareSceneData(data = {}) {
@@ -336,6 +329,15 @@ function formatGridTypeLabel(name) {
     .toLowerCase()
     .replace(/_/g, " ")
     .replace(/\b\w/g, char => char.toUpperCase());
+}
+
+function getSceneDirectoryClasses() {
+  const candidates = [
+    globalThis.SceneDirectory,
+    globalThis.foundry?.applications?.sidebar?.tabs?.SceneDirectory
+  ].filter(SceneDirectoryClass => typeof SceneDirectoryClass === "function");
+
+  return [...new Set(candidates)];
 }
 
 function addBackgroundDirectoryBrowseButton(html) {
