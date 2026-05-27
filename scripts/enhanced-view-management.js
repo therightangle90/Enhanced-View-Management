@@ -25,10 +25,6 @@ Hooks.on("renderSettingsConfig", (_app, html) => {
   addBackgroundDirectoryBrowseButton(html);
 });
 
-Hooks.once("ready", () => {
-  patchSceneCreateDialog();
-});
-
 Hooks.on("preCreateScene", (scene, data) => {
   const prepared = prepareSceneData(data);
   const diff = foundry.utils.diffObject(data, prepared);
@@ -247,11 +243,11 @@ function patchSceneCreateDialog() {
   SceneClass._evmCreateDialogPatched = true;
   SceneClass.createDialog = async function createDialogPatched(data = {}, options = {}) {
     if (!game.user?.isGM) return originalCreateDialog.call(this, data, options);
-    return showCreateSceneDialog(data);
+    return showCreateSceneDialog(data, options);
   };
 }
 
-async function showCreateSceneDialog(initialData = {}) {
+async function showCreateSceneDialog(initialData = {}, _options = {}) {
   const directory = game.settings.get(MODULE_ID, SETTINGS.BACKGROUND_IMAGE_DIRECTORY).trim();
   const initialImage = initialData.background?.src?.trim() || initialData.img?.trim() || "";
   const imageChoices = await buildImageChoices(directory, initialImage);
