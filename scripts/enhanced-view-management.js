@@ -88,6 +88,11 @@ Hooks.on("renderDialog", (app, html) => {
     });
 
   html.parent()
+    .css({
+      "padding-bottom": "4px"
+    });
+
+  html.parent()
     .find(
       ".dialog-buttons button"
     )
@@ -127,25 +132,20 @@ Hooks.on("preCreateScene",
 
 function patchSceneDelete() {
 
-  const proto =
-    SceneDirectory?.prototype;
-
   if (
-    !proto ||
-    typeof proto._onDeleteEntry !==
-    "function"
-  ) return;
-
-  if (
-    proto._onDeleteEntry
-      .__evmPatched
+    Scene.prototype.deleteDialog?.__evmPatched
   ) return;
 
   const original =
-    proto._onDeleteEntry;
+    Scene.prototype.deleteDialog;
 
-  proto._onDeleteEntry =
-    async function (li) {
+  if (
+    typeof original !==
+    "function"
+  ) return;
+
+  Scene.prototype.deleteDialog =
+    async function (...args) {
 
       if (
         !game.settings.get(
@@ -153,29 +153,16 @@ function patchSceneDelete() {
           SETTINGS.WARN_SCENE_DELETE
         )
       ) {
-
-        const documentId =
-          li instanceof jQuery
-            ? li.data("document-id")
-            : li?.dataset?.documentId;
-
-        const scene =
-          game.scenes?.get(
-            documentId
-          );
-
-        if (scene) {
-          return scene.delete();
-        }
+        return this.delete();
       }
 
-      return original.call(
+      return original.apply(
         this,
-        li
+        args
       );
     };
 
-  proto._onDeleteEntry
+  Scene.prototype.deleteDialog
     .__evmPatched = true;
 }
 
@@ -787,9 +774,16 @@ function addBackgroundDirectoryBrowseButton(
   if (!input.length) return;
 
   const button = $(
-    `<button type="button" style="width:auto;margin-left:4px" title="${game.i18n.localize("EVM.BrowseDirectories")}">` +
+    `<button type="button" style="width:auto;margin-left:4px">` +
     `<i class="fas fa-folder-open"></i>` +
     `</button>`
+  );
+
+  button.attr(
+    "title",
+    game.i18n.localize(
+      "EVM.BrowseDirectories"
+    )
   );
 
   button.on("click", async () => {
