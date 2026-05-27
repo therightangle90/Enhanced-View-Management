@@ -18,15 +18,15 @@ const IMAGE_EXTENSIONS = /\.(apng|avif|bmp|gif|jpe?g|png|svg|webp)$/i;
 
 Hooks.once("init", () => {
   registerSettings();
-  patchSceneDirectoryCreate();
-});
-
-Hooks.once("ready", () => {
-  patchSceneDirectoryCreate();
 });
 
 Hooks.on("renderSettingsConfig", (_app, html) => {
   addBackgroundDirectoryBrowseButton(html);
+});
+
+Hooks.on("renderSceneConfig", (app, html) => {
+  if (app.object?.id) return;
+  void addBackgroundImageSelector(html);
 });
 
 Hooks.on("preCreateScene", (scene, data) => {
@@ -140,71 +140,11 @@ function registerSettings() {
   });
 }
 
-function patchSceneDirectoryCreate() {
-  const createEntryHandler = async function _onCreateEntryPatched(event) {
-    event?.preventDefault?.();
-
-    const directory = game.settings.get(MODULE_ID, SETTINGS.BACKGROUND_IMAGE_DIRECTORY).trim();
-    const imageChoices = await buildImageChoices(directory);
-    const folderChoices = getFolderChoices();
-
-    const content = `
-      <form>
-        <div class="form-group">
-          <label>${game.i18n.localize("Name")}</label>
-          <input type="text" name="name" />
-        </div>
-        <div class="form-group">
-          <label>${game.i18n.localize("FOLDER.Folder")}</label>
-          <select name="folder">${folderChoices}</select>
-        </div>
-        <div class="form-group">
-          <label>${game.i18n.localize("EVM.BackgroundImage")}</label>
-          <select name="backgroundImage">${imageChoices}</select>
-        </div>
-      </form>
-    `;
-
-    return Dialog.prompt({
-      title: game.i18n.localize("SCENES.Create"),
-      content,
-      label: game.i18n.localize("SCENES.Create"),
-      callback: async html => {
-        const form = resolveDialogForm(html);
-        if (!form) return null;
-        const nameInput = form.querySelector('input[name="name"]');
-        const folderInput = form.querySelector('select[name="folder"]');
-        const imageInput = form.querySelector('select[name="backgroundImage"]');
-        const selectedImage = imageInput?.value?.trim() ?? "";
-        const enteredName = nameInput?.value?.trim() ?? "";
-        const sceneData = prepareSceneData({
-          name: enteredName,
-          folder: folderInput?.value || null,
-          img: selectedImage || null
-        });
-
-        if (!sceneData.name) {
-          ui.notifications.warn(game.i18n.localize("EVM.NameOrImageRequired"));
-          return null;
-        }
-
-        return Scene.create(sceneData);
-      }
-    });
-  };
-
-  for (const SceneDirectoryClass of getSceneDirectoryClasses()) {
-    const proto = SceneDirectoryClass.prototype;
-    if (!proto || proto._enhancedViewManagementPatched) continue;
-    proto._enhancedViewManagementPatched = true;
-    proto._onCreateEntry = createEntryHandler;
-  }
-}
-
 function prepareSceneData(data = {}) {
   const prepared = foundry.utils.deepClone(data);
   const initial = prepared.initial ?? {};
   const grid = prepared.grid ?? {};
+  const background = prepared.background ?? {};
 
   prepared.navigation ??= game.settings.get(MODULE_ID, SETTINGS.DEFAULT_NAVIGATION);
   prepared.backgroundColor ??= game.settings.get(MODULE_ID, SETTINGS.DEFAULT_BACKGROUND_COLOR);
@@ -217,28 +157,61 @@ function prepareSceneData(data = {}) {
     ...grid,
     type: grid.type ?? game.settings.get(MODULE_ID, SETTINGS.DEFAULT_GRID_TYPE)
   };
+  prepared.background = { ...background };
+  prepared.background.src ??= prepared.img ?? "";
   prepared.width ??= game.settings.get(MODULE_ID, SETTINGS.DEFAULT_WIDTH);
   prepared.height ??= game.settings.get(MODULE_ID, SETTINGS.DEFAULT_HEIGHT);
   prepared.padding ??= game.settings.get(MODULE_ID, SETTINGS.DEFAULT_PADDING);
   prepared.tokenVision ??= game.settings.get(MODULE_ID, SETTINGS.DEFAULT_TOKEN_VISION);
 
-  if (!prepared.name?.trim() && prepared.img) {
-    prepared.name = deriveNameFromImage(prepared.img);
+  const backgroundPath = getBackgroundImagePath(prepared);
+  if (!prepared.name?.trim() && backgroundPath) {
+    prepared.name = deriveNameFromImage(backgroundPath);
   }
 
   return prepared;
 }
 
-function getFolderChoices() {
-  const folders = game.folders.contents
-    .filter(folder => folder.type === "Scene")
-    .sort((a, b) => a.name.localeCompare(b.name));
+async function addBackgroundImageSelector(html) {
+  const root = html?.[0] ?? html;
+  if (!root) return;
 
-  const choices = [`<option value="">${game.i18n.localize("None")}</option>`];
-  for (const folder of folders) {
-    choices.push(`<option value="${folder.id}">${TextEditor.escapeHTML(folder.name)}</option>`);
+  const form = root.querySelector("form");
+  if (!form || form.querySelector('[data-evm-background-selector="true"]')) return;
+
+  const directory = game.settings.get(MODULE_ID, SETTINGS.BACKGROUND_IMAGE_DIRECTORY).trim();
+  const imageChoices = await buildImageChoices(directory);
+  const backgroundInput = ensureBackgroundInput(form);
+  const currentImage = backgroundInput.value?.trim() ?? "";
+
+  const field = document.createElement("div");
+  field.classList.add("form-group");
+  field.dataset.evmBackgroundSelector = "true";
+  field.innerHTML = `
+    <label>${game.i18n.localize("EVM.BackgroundImage")}</label>
+    <div class="form-fields">
+      <select name="evmBackgroundImage">${imageChoices}</select>
+    </div>
+  `;
+
+  const select = field.querySelector('select[name="evmBackgroundImage"]');
+  if (currentImage) select.value = currentImage;
+  select?.addEventListener("change", () => {
+    const selectedImage = select.value?.trim() ?? "";
+    setBackgroundInputValue(form, selectedImage);
+    populateNameFromImage(form, selectedImage);
+  });
+
+  const anchor = backgroundInput.closest(".form-group")
+    ?? form.querySelector('input[name="name"]')?.closest(".form-group")
+    ?? form.firstElementChild;
+
+  if (!anchor) {
+    form.append(field);
+    return;
   }
-  return choices.join("");
+
+  anchor.insertAdjacentElement("afterend", field);
 }
 
 async function buildImageChoices(directory) {
@@ -318,6 +291,10 @@ function deriveNameFromImage(path) {
   return lastDot >= 0 ? filename.slice(0, lastDot) : filename;
 }
 
+function getBackgroundImagePath(data) {
+  return data.background?.src?.trim() || data.img?.trim() || "";
+}
+
 function relativeDirName(parent, child) {
   const normalizedParent = parent.replace(/\/+$/, "");
   const normalizedChild = child.replace(/\/+$/, "");
@@ -330,15 +307,6 @@ function formatGridTypeLabel(name) {
     .toLowerCase()
     .replace(/_/g, " ")
     .replace(/\b\w/g, char => char.toUpperCase());
-}
-
-function getSceneDirectoryClasses() {
-  const candidates = [
-    globalThis.SceneDirectory,
-    globalThis.foundry?.applications?.sidebar?.tabs?.SceneDirectory
-  ].filter(SceneDirectoryClass => typeof SceneDirectoryClass === "function");
-
-  return [...new Set(candidates)];
 }
 
 function addBackgroundDirectoryBrowseButton(html) {
@@ -382,13 +350,6 @@ async function openDirectoryPicker(input) {
     callback
   });
   picker.render(true);
-}
-
-function resolveDialogForm(html) {
-  const root = html?.[0] ?? html;
-  if (!root) return null;
-  if (root instanceof HTMLFormElement) return root;
-  return root.querySelector?.("form") ?? null;
 }
 
 async function resolvePickerDirectory(path, source = "data") {
@@ -445,6 +406,37 @@ async function browseDirectoryWithFallback(source, directory) {
     }
   }
   throw lastError;
+}
+
+function ensureBackgroundInput(form) {
+  return form.querySelector('input[name="background.src"]')
+    ?? form.querySelector('input[name="img"]')
+    ?? createHiddenBackgroundInput(form);
+}
+
+function createHiddenBackgroundInput(form) {
+  const input = document.createElement("input");
+  input.type = "hidden";
+  input.name = "background.src";
+  form.append(input);
+  return input;
+}
+
+function setBackgroundInputValue(form, value) {
+  for (const input of form.querySelectorAll('input[name="background.src"], input[name="img"]')) {
+    input.value = value;
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+  }
+}
+
+function populateNameFromImage(form, imagePath) {
+  if (!imagePath) return;
+  const nameInput = form.querySelector('input[name="name"]');
+  if (!nameInput || nameInput.value?.trim()) return;
+  nameInput.value = deriveNameFromImage(imagePath);
+  nameInput.dispatchEvent(new Event("input", { bubbles: true }));
+  nameInput.dispatchEvent(new Event("change", { bubbles: true }));
 }
 
 function parentDirectory(path) {
