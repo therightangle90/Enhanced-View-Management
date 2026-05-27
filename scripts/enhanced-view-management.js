@@ -27,8 +27,7 @@ Hooks.once("init", () => {
 
 Hooks.on("renderDialog", (app, html) => {
 
-  const $html =
-    asJQuery(html);
+  const $html = asJQuery(html);
 
   const isCustomDialog =
     app.options
@@ -630,32 +629,31 @@ createOptionMarkup(
   const createScene =
     async html => {
 
-    html =
-      asJQuery(html);
+    const $html = asJQuery(html);
 
     let name =
-      html.find(
+      $html.find(
         "#evm-scene-name"
       )
       .val()
       ?.trim() ?? "";
 
     const folder =
-      html.find(
+      $html.find(
         "#evm-scene-folder"
       )
       .val() ||
       null;
 
     const image =
-      html.find(
+      $html.find(
         "#evm-scene-background"
       )
       .val() ||
       "";
 
     const playlist =
-      html.find(
+      $html.find(
         "#evm-scene-playlist"
       )
       .val() ||
@@ -1017,7 +1015,5 @@ function asJQuery(
   html
 ) {
 
-  return html?.jquery
-    ? html
-    : $(html);
+  return html?.jquery ? html : $(html);
 }
