@@ -21,9 +21,17 @@ const PIXELS_PER_CHARACTER = 7;
 
 Hooks.once("init", () => {
   registerSettings();
+  installDialogPatches();
+});
+
+Hooks.once("ready", () => {
+  installDialogPatches();
+});
+
+function installDialogPatches() {
   patchSceneCreateDialog();
   patchSceneDeleteDialog();
-});
+}
 
 Hooks.on("renderDialog", (app, html) => {
 
@@ -519,6 +527,46 @@ function prepareSceneData(
       MODULE_ID,
       SETTINGS
         .DEFAULT_TOKEN_VISION
+    );
+
+  if (
+    typeof prepared.initial !==
+      "object" ||
+    prepared.initial === null
+  ) {
+    prepared.initial = {};
+  }
+  prepared.initial.x ??=
+    game.settings.get(
+      MODULE_ID,
+      SETTINGS
+        .DEFAULT_INITIAL_X
+    );
+  prepared.initial.y ??=
+    game.settings.get(
+      MODULE_ID,
+      SETTINGS
+        .DEFAULT_INITIAL_Y
+    );
+  prepared.initial.scale ??=
+    game.settings.get(
+      MODULE_ID,
+      SETTINGS
+        .DEFAULT_INITIAL_ZOOM
+    );
+
+  if (
+    typeof prepared.grid !==
+      "object" ||
+    prepared.grid === null
+  ) {
+    prepared.grid = {};
+  }
+  prepared.grid.type ??=
+    game.settings.get(
+      MODULE_ID,
+      SETTINGS
+        .DEFAULT_GRID_TYPE
     );
 
   return prepared;
