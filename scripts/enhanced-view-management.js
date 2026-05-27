@@ -21,7 +21,6 @@ const PIXELS_PER_CHARACTER = 7;
 
 Hooks.once("init", () => {
   registerSettings();
-  installDialogPatches();
 });
 
 Hooks.once("ready", () => {
@@ -487,87 +486,110 @@ function prepareSceneData(
         data
       );
 
+  const defaults = {
+    navigation:
+      game.settings.get(
+        MODULE_ID,
+        SETTINGS
+          .DEFAULT_NAVIGATION
+      ),
+    backgroundColor:
+      game.settings.get(
+        MODULE_ID,
+        SETTINGS
+          .DEFAULT_BACKGROUND_COLOR
+      ),
+    width:
+      game.settings.get(
+        MODULE_ID,
+        SETTINGS
+          .DEFAULT_WIDTH
+      ),
+    height:
+      game.settings.get(
+        MODULE_ID,
+        SETTINGS
+          .DEFAULT_HEIGHT
+      ),
+    padding:
+      game.settings.get(
+        MODULE_ID,
+        SETTINGS
+          .DEFAULT_PADDING
+      ),
+    tokenVision:
+      game.settings.get(
+        MODULE_ID,
+        SETTINGS
+          .DEFAULT_TOKEN_VISION
+      ),
+    initialX:
+      game.settings.get(
+        MODULE_ID,
+        SETTINGS
+          .DEFAULT_INITIAL_X
+      ),
+    initialY:
+      game.settings.get(
+        MODULE_ID,
+        SETTINGS
+          .DEFAULT_INITIAL_Y
+      ),
+    initialScale:
+      game.settings.get(
+        MODULE_ID,
+        SETTINGS
+          .DEFAULT_INITIAL_ZOOM
+      ),
+    gridType:
+      game.settings.get(
+        MODULE_ID,
+        SETTINGS
+          .DEFAULT_GRID_TYPE
+      )
+  };
+
   prepared.navigation ??=
-    game.settings.get(
-      MODULE_ID,
-      SETTINGS
-        .DEFAULT_NAVIGATION
-    );
+    defaults.navigation;
 
   prepared.backgroundColor ??=
-    game.settings.get(
-      MODULE_ID,
-      SETTINGS
-        .DEFAULT_BACKGROUND_COLOR
-    );
+    defaults.backgroundColor;
 
   prepared.width ??=
-    game.settings.get(
-      MODULE_ID,
-      SETTINGS
-        .DEFAULT_WIDTH
-    );
+    defaults.width;
 
   prepared.height ??=
-    game.settings.get(
-      MODULE_ID,
-      SETTINGS
-        .DEFAULT_HEIGHT
-    );
+    defaults.height;
 
   prepared.padding ??=
-    game.settings.get(
-      MODULE_ID,
-      SETTINGS
-        .DEFAULT_PADDING
-    );
+    defaults.padding;
 
   prepared.tokenVision ??=
-    game.settings.get(
-      MODULE_ID,
-      SETTINGS
-        .DEFAULT_TOKEN_VISION
-    );
+    defaults.tokenVision;
 
   if (
+    !prepared.initial ||
     typeof prepared.initial !==
-      "object" ||
-    prepared.initial === null
+      "object"
   ) {
     prepared.initial = {};
   }
   prepared.initial.x ??=
-    game.settings.get(
-      MODULE_ID,
-      SETTINGS
-        .DEFAULT_INITIAL_X
-    );
+    defaults.initialX;
   prepared.initial.y ??=
-    game.settings.get(
-      MODULE_ID,
-      SETTINGS
-        .DEFAULT_INITIAL_Y
-    );
+    defaults.initialY;
   prepared.initial.scale ??=
-    game.settings.get(
-      MODULE_ID,
-      SETTINGS
-        .DEFAULT_INITIAL_ZOOM
-    );
+    defaults.initialScale;
 
   if (
+    !prepared.grid ||
     typeof prepared.grid !==
-      "object" ||
-    prepared.grid === null
+      "object"
   ) {
     prepared.grid = {};
   }
   prepared.grid.type ??=
-    game.settings.get(
-      MODULE_ID,
-      SETTINGS
-        .DEFAULT_GRID_TYPE
-    );
+    defaults.gridType;
 
   return prepared;
 }
