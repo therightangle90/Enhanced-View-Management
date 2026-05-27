@@ -22,12 +22,30 @@ Hooks.once("init", () => {
 
 Hooks.on("renderSceneDirectory", (_app, html) => {
   if (!game.user?.isGM) return;
-  const createBtn = html.find('button[data-action="create"], .create-entity, a.create-entity');
-  createBtn.off("click").on("click", ev => {
-    ev.preventDefault();
-    ev.stopImmediatePropagation();
-    ui.notifications.info("i clicked new scene");
-    showCreateSceneDialog();
+
+  // Support both a jQuery wrapper and a plain HTMLElement (varies by Foundry version)
+  const root = html instanceof jQuery ? html[0] : html;
+  if (!root) return;
+
+  // Cover all known button selectors across Foundry v11 and v12
+  const selectors = [
+    'button[data-action="createDocument"]',
+    'button[data-action="create"]',
+    '.create-entity',
+    'a.create-entity'
+  ].join(", ");
+
+  root.querySelectorAll(selectors).forEach(btn => {
+    // Clone + replace to strip every existing event listener (native and jQuery alike)
+    // so Foundry's default create-scene dialog can never open alongside ours.
+    const clone = btn.cloneNode(true);
+    btn.replaceWith(clone);
+    clone.addEventListener("click", ev => {
+      ev.preventDefault();
+      ev.stopImmediatePropagation();
+      ui.notifications.info("i clicked new scene");
+      showCreateSceneDialog();
+    });
   });
 });
 
