@@ -27,6 +27,9 @@ Hooks.once("init", () => {
 
 Hooks.on("renderDialog", (app, html) => {
 
+  const $html =
+    asJQuery(html);
+
   const isCustomDialog =
     app.options
       ?.classes
@@ -37,11 +40,11 @@ Hooks.on("renderDialog", (app, html) => {
   if (!isCustomDialog) return;
 
   const root =
-    html.closest(".app");
+    $html.closest(".app");
 
   let widest = MIN_DIALOG_WIDTH;
 
-  html.find("option").each(
+  $html.find("option").each(
     (_i, el) => {
 
       const len =
@@ -63,7 +66,7 @@ Hooks.on("renderDialog", (app, html) => {
     "max-width": "95vw"
   });
 
-  html.find(".form-group")
+  $html.find(".form-group")
     .css({
       display: "grid",
       "grid-template-columns":
@@ -75,13 +78,13 @@ Hooks.on("renderDialog", (app, html) => {
         "0 0 6px 0"
     });
 
-  html.find(
+  $html.find(
     "select,input"
   ).css({
     width: "100%"
   });
 
-  html.parent()
+  $html.parent()
     .find(".dialog-buttons, .form-footer, .dialog-button-group")
     .css({
       display: "flex",
@@ -92,7 +95,7 @@ Hooks.on("renderDialog", (app, html) => {
       margin: "8px 0 0 0"
     });
 
-  html.parent()
+  $html.parent()
     .find(".dialog-buttons button, .form-footer button, .dialog-button-group button")
     .css({
       flex: "0 0 auto",
@@ -627,6 +630,9 @@ createOptionMarkup(
   const createScene =
     async html => {
 
+    html =
+      asJQuery(html);
+
     let name =
       html.find(
         "#evm-scene-name"
@@ -1005,4 +1011,13 @@ function formatGridTypeLabel(
       c =>
         c.toUpperCase()
     );
+}
+
+function asJQuery(
+  html
+) {
+
+  return html?.jquery
+    ? html
+    : $(html);
 }
