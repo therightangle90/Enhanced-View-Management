@@ -243,11 +243,12 @@ function getFolderChoices() {
 
 async function buildImageChoices(directory) {
   const choices = [`<option value="">${game.i18n.localize("None")}</option>`];
-  if (!directory) return choices.join("");
+  const configured = parseDirectorySetting(directory);
+  if (!configured.path) return choices.join("");
 
   let listing;
   try {
-    listing = await collectImageListing(directory);
+    listing = await collectImageListing(configured.source, configured.path);
   } catch (error) {
     console.warn(`${MODULE_ID} | Failed to browse image directory`, error);
     ui.notifications.warn(game.i18n.format("EVM.BrowseDirectoryFailed", { directory }));
@@ -269,8 +270,8 @@ async function buildImageChoices(directory) {
   return choices.join("");
 }
 
-async function collectImageListing(rootDirectory) {
-  const rootBrowse = await FilePicker.browse("data", rootDirectory);
+async function collectImageListing(rootSource, rootDirectory) {
+  const { source, listing: rootBrowse } = await browseDirectoryWithFallback(rootSource, rootDirectory);
 
   const root = (rootBrowse.files ?? [])
     .filter(isImageFile)
@@ -280,14 +281,14 @@ async function collectImageListing(rootDirectory) {
   const sections = [];
   const dirs = [...(rootBrowse.dirs ?? [])].sort(sortByPathName);
   for (const dir of dirs) {
-    await collectFromSubdirectory(dir, relativeDirName(rootDirectory, dir), sections);
+    await collectFromSubdirectory(source, dir, relativeDirName(rootDirectory, dir), sections);
   }
 
   return { root, sections };
 }
 
-async function collectFromSubdirectory(directory, label, sections) {
-  const browse = await FilePicker.browse("data", directory);
+async function collectFromSubdirectory(source, directory, label, sections) {
+  const browse = await FilePicker.browse(source, directory);
   const images = (browse.files ?? [])
     .filter(isImageFile)
     .map(path => ({ path, label: fileName(path) }))
@@ -298,7 +299,7 @@ async function collectFromSubdirectory(directory, label, sections) {
   const dirs = [...(browse.dirs ?? [])].sort(sortByPathName);
   for (const dir of dirs) {
     const childLabel = `${label}/${relativeDirName(directory, dir)}`;
-    await collectFromSubdirectory(dir, childLabel, sections);
+    await collectFromSubdirectory(source, dir, childLabel, sections);
   }
 }
 
@@ -365,15 +366,18 @@ function addBackgroundDirectoryBrowseButton(html) {
 }
 
 async function openDirectoryPicker(input) {
+  const configured = parseDirectorySetting(input.value);
+  let picker;
   const callback = path => {
-    input.value = path ?? "";
+    const source = picker?.activeSource ?? configured.source;
+    input.value = formatDirectorySettingValue(source, path);
     input.dispatchEvent(new Event("change", { bubbles: true }));
   };
 
-  const current = await resolvePickerDirectory(input.value);
-  const picker = new FilePicker({
+  const current = await resolvePickerDirectory(configured.path, configured.source);
+  picker = new FilePicker({
     type: "folder",
-    activeSource: "data",
+    activeSource: configured.source,
     current,
     callback
   });
@@ -387,14 +391,16 @@ function resolveDialogForm(html) {
   return root.querySelector?.("form") ?? null;
 }
 
-async function resolvePickerDirectory(path) {
+async function resolvePickerDirectory(path, source = "data") {
   const normalized = normalizeDirectoryPath(path);
   if (!normalized) return "";
 
   let current = normalized;
+  let activeSource = source;
   while (current) {
     try {
-      await FilePicker.browse("data", current);
+      const result = await browseDirectoryWithFallback(activeSource, current);
+      activeSource = result.source;
       return current;
     } catch (_error) {
       current = parentDirectory(current);
@@ -406,6 +412,40 @@ async function resolvePickerDirectory(path) {
 
 function normalizeDirectoryPath(path) {
   return path?.trim().replace(/\/+$/, "") ?? "";
+}
+
+function parseDirectorySetting(path) {
+  const raw = path?.trim() ?? "";
+  if (!raw) return { source: "data", path: "" };
+  const sourceMatch = raw.match(/^\[([^\]]+)\]\s*(.+)$/);
+  if (!sourceMatch) return { source: "data", path: normalizeDirectoryPath(raw) };
+  return {
+    source: sourceMatch[1]?.trim() || "data",
+    path: normalizeDirectoryPath(sourceMatch[2] ?? "")
+  };
+}
+
+function formatDirectorySettingValue(source, path) {
+  const normalizedPath = normalizeDirectoryPath(path);
+  if (!normalizedPath) return "";
+  if (!source || source === "data") return normalizedPath;
+  return `[${source}] ${normalizedPath}`;
+}
+
+async function browseDirectoryWithFallback(source, directory) {
+  const candidates = [...new Set([source, "data", "public"].filter(Boolean))];
+  let lastError;
+  for (const candidate of candidates) {
+    try {
+      return {
+        source: candidate,
+        listing: await FilePicker.browse(candidate, directory)
+      };
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw lastError;
 }
 
 function parentDirectory(path) {
