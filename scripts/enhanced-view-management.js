@@ -11,7 +11,8 @@ const SETTINGS = {
   DEFAULT_HEIGHT: "defaultHeight",
   DEFAULT_PADDING: "defaultPadding",
   DEFAULT_TOKEN_VISION: "defaultTokenVision",
-  BACKGROUND_IMAGE_DIRECTORY: "backgroundImageDirectory"
+  BACKGROUND_IMAGE_DIRECTORY: "backgroundImageDirectory",
+  WARN_SCENE_DELETE: "warnSceneDelete"
 };
 
 const IMAGE_EXTENSIONS = /\.(jpe?g|png|webp)$/i;
@@ -19,6 +20,7 @@ const IMAGE_EXTENSIONS = /\.(jpe?g|png|webp)$/i;
 Hooks.once("init", () => {
   registerSettings();
   patchSceneCreateDialog();
+  patchSceneDelete();
 });
 
 Hooks.on("renderSettingsConfig", (_app, html) => {
@@ -53,7 +55,8 @@ Hooks.on("renderDialog", (app, html) => {
 
   root.css({
     width: `${widest}px`,
-    "max-width": "95vw"
+    "max-width": "95vw",
+    height: "auto"
   });
 
   html.find(".form-group")
@@ -61,7 +64,7 @@ Hooks.on("renderDialog", (app, html) => {
       display: "grid",
       "grid-template-columns":
         "180px 1fr",
-      gap: "8px",
+      gap: "4px",
       "align-items":
         "center",
       margin:
@@ -82,7 +85,7 @@ Hooks.on("renderDialog", (app, html) => {
       "justify-content":
         "flex-end",
       margin:
-        "8px 0 0 0"
+        "4px 0 0 0"
     });
 
   html.parent()
@@ -90,7 +93,7 @@ Hooks.on("renderDialog", (app, html) => {
       ".dialog-buttons button"
     )
     .css({
-      flex: "0 0 auto",
+      flex: "1 1 0",
       height: "28px",
       padding:
         "0 10px",
@@ -101,8 +104,7 @@ Hooks.on("renderDialog", (app, html) => {
 
 });
 
-Hooks.on(
-  "preCreateScene",
+Hooks.on("preCreateScene",
   (scene, data) => {
 
     const prepared =
@@ -123,6 +125,42 @@ Hooks.on(
     }
   }
 );
+
+function patchSceneDelete() {
+
+  if (
+    Scene.prototype.deleteDialog?.__evmPatched
+  ) return;
+
+  const original =
+    Scene.prototype.deleteDialog;
+
+  if (
+    typeof original !==
+    "function"
+  ) return;
+
+  Scene.prototype.deleteDialog =
+    async function (...args) {
+
+      if (
+        !game.settings.get(
+          MODULE_ID,
+          SETTINGS.WARN_SCENE_DELETE
+        )
+      ) {
+        return this.delete();
+      }
+
+      return original.apply(
+        this,
+        args
+      );
+    };
+
+  Scene.prototype.deleteDialog
+    .__evmPatched = true;
+}
 
 function patchSceneCreateDialog() {
 
@@ -164,7 +202,7 @@ function patchSceneCreateDialog() {
 function registerSettings() {
 
   for (
-    const setting of [
+    const [key, type, def] of [
 
       [SETTINGS.DEFAULT_NAVIGATION, Boolean, true],
       [SETTINGS.DEFAULT_BACKGROUND_COLOR, String, "#000000"],
@@ -175,19 +213,27 @@ function registerSettings() {
       [SETTINGS.DEFAULT_HEIGHT, Number, 3000],
       [SETTINGS.DEFAULT_PADDING, Number, 0.25],
       [SETTINGS.DEFAULT_TOKEN_VISION, Boolean, false],
-      [SETTINGS.BACKGROUND_IMAGE_DIRECTORY, String, ""]
+      [SETTINGS.BACKGROUND_IMAGE_DIRECTORY, String, ""],
+      [SETTINGS.WARN_SCENE_DELETE, Boolean, true]
 
     ]
   ) {
 
+    const localizedKeyBase = key
+      .charAt(0)
+      .toUpperCase() +
+      key.slice(1);
+
     game.settings.register(
       MODULE_ID,
-      setting[0],
+      key,
       {
+        name: `EVM.Settings.${localizedKeyBase}.Name`,
+        hint: `EVM.Settings.${localizedKeyBase}.Hint`,
         scope: "world",
         config: true,
-        type: setting[1],
-        default: setting[2]
+        type,
+        default: def
       }
     );
   }
@@ -196,6 +242,8 @@ function registerSettings() {
     MODULE_ID,
     SETTINGS.DEFAULT_GRID_TYPE,
     {
+      name: "EVM.Settings.DefaultGridType.Name",
+      hint: "EVM.Settings.DefaultGridType.Hint",
       scope: "world",
       config: true,
       type: Number,
@@ -277,6 +325,38 @@ function prepareSceneData(
       MODULE_ID,
       SETTINGS
         .DEFAULT_TOKEN_VISION
+    );
+
+  prepared.grid ??= {};
+
+  prepared.grid.type ??=
+    game.settings.get(
+      MODULE_ID,
+      SETTINGS
+        .DEFAULT_GRID_TYPE
+    );
+
+  prepared.initial ??= {};
+
+  prepared.initial.x ??=
+    game.settings.get(
+      MODULE_ID,
+      SETTINGS
+        .DEFAULT_INITIAL_X
+    );
+
+  prepared.initial.y ??=
+    game.settings.get(
+      MODULE_ID,
+      SETTINGS
+        .DEFAULT_INITIAL_Y
+    );
+
+  prepared.initial.scale ??=
+    game.settings.get(
+      MODULE_ID,
+      SETTINGS
+        .DEFAULT_INITIAL_ZOOM
     );
 
   return prepared;
@@ -680,7 +760,57 @@ function fileName(
 
 function addBackgroundDirectoryBrowseButton(
   html
-) {}
+) {
+
+  const input =
+    html.find(
+      `input[name="${MODULE_ID}.${SETTINGS.BACKGROUND_IMAGE_DIRECTORY}"]`
+    );
+
+  if (!input.length) return;
+
+  const button = $(
+    `<button type="button" style="width:auto;margin-left:4px">` +
+    `<i class="fas fa-folder-open"></i>` +
+    `</button>`
+  );
+
+  button.attr(
+    "title",
+    game.i18n.localize(
+      "EVM.BrowseDirectories"
+    )
+  );
+
+  button.on("click", async () => {
+
+    const currentPath =
+      input.val()?.trim() || "";
+
+    const picker =
+      new FilePicker({
+        type: "folder",
+        current: currentPath,
+        callback: path => {
+          input.val(path).trigger("change");
+        }
+      });
+
+    picker.render(true);
+  });
+
+  input.after(button);
+
+  input
+    .closest(".form-group")
+    .find(
+      ".form-fields"
+    )
+    .css({
+      display: "flex",
+      "align-items": "center"
+    });
+}
 
 function formatGridTypeLabel(
   name
