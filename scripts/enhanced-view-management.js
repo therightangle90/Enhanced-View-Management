@@ -92,7 +92,7 @@ Hooks.on("renderDialog", (app, html) => {
       ".dialog-buttons button"
     )
     .css({
-      flex: "0 0 auto",
+      flex: "1 1 0",
       height: "28px",
       padding:
         "0 10px",
@@ -342,6 +342,38 @@ function prepareSceneData(
       MODULE_ID,
       SETTINGS
         .DEFAULT_TOKEN_VISION
+    );
+
+  prepared.grid ??= {};
+
+  prepared.grid.type ??=
+    game.settings.get(
+      MODULE_ID,
+      SETTINGS
+        .DEFAULT_GRID_TYPE
+    );
+
+  prepared.initial ??= {};
+
+  prepared.initial.x ??=
+    game.settings.get(
+      MODULE_ID,
+      SETTINGS
+        .DEFAULT_INITIAL_X
+    );
+
+  prepared.initial.y ??=
+    game.settings.get(
+      MODULE_ID,
+      SETTINGS
+        .DEFAULT_INITIAL_Y
+    );
+
+  prepared.initial.scale ??=
+    game.settings.get(
+      MODULE_ID,
+      SETTINGS
+        .DEFAULT_INITIAL_ZOOM
     );
 
   return prepared;
@@ -762,13 +794,13 @@ function addBackgroundDirectoryBrowseButton(
 
   button.on("click", async () => {
 
-    const current =
+    const currentPath =
       input.val()?.trim() || "";
 
     const picker =
       new FilePicker({
         type: "folder",
-        current,
+        current: currentPath,
         callback: path => {
           input.val(path).trigger("change");
         }
