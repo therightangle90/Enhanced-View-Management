@@ -2,7 +2,6 @@ const MODULE_ID = "enhanced-view-management";
 
 const SETTINGS = {
   DEFAULT_NAVIGATION: "defaultNavigation",
-  DEFAULT_PERMISSION: "defaultPermission",
   DEFAULT_BACKGROUND_COLOR: "defaultBackgroundColor",
   DEFAULT_INITIAL_X: "defaultInitialX",
   DEFAULT_INITIAL_Y: "defaultInitialY",
@@ -22,6 +21,10 @@ Hooks.once("init", () => {
   patchSceneDirectoryCreate();
 });
 
+Hooks.on("renderSettingsConfig", (_app, html) => {
+  addBackgroundDirectoryBrowseButton(html);
+});
+
 Hooks.on("preCreateScene", (scene, data) => {
   const prepared = prepareSceneData(data);
   const diff = foundry.utils.diffObject(data, prepared);
@@ -36,21 +39,6 @@ function registerSettings() {
     config: true,
     type: Boolean,
     default: true
-  });
-
-  game.settings.register(MODULE_ID, SETTINGS.DEFAULT_PERMISSION, {
-    name: "Default permission",
-    hint: "Set the default ownership level for newly created scenes.",
-    scope: "world",
-    config: true,
-    type: Number,
-    choices: {
-      [CONST.DOCUMENT_OWNERSHIP_LEVELS.NONE]: "None",
-      [CONST.DOCUMENT_OWNERSHIP_LEVELS.LIMITED]: "Limited",
-      [CONST.DOCUMENT_OWNERSHIP_LEVELS.OBSERVER]: "Observer",
-      [CONST.DOCUMENT_OWNERSHIP_LEVELS.OWNER]: "Owner"
-    },
-    default: CONST.DOCUMENT_OWNERSHIP_LEVELS.OBSERVER
   });
 
   game.settings.register(MODULE_ID, SETTINGS.DEFAULT_BACKGROUND_COLOR, {
@@ -154,7 +142,7 @@ function patchSceneDirectoryCreate() {
 
   proto._enhancedViewManagementPatched = true;
   const createEntryHandler = async function _onCreateEntryPatched(event) {
-    event.preventDefault();
+    event?.preventDefault?.();
 
     const directory = game.settings.get(MODULE_ID, SETTINGS.BACKGROUND_IMAGE_DIRECTORY).trim();
     const imageChoices = await buildImageChoices(directory);
@@ -183,11 +171,14 @@ function patchSceneDirectoryCreate() {
       label: game.i18n.localize("SCENES.Create"),
       callback: async html => {
         const form = html[0].querySelector("form");
-        const selectedImage = form.backgroundImage.value.trim();
-        const enteredName = form.name.value.trim();
+        const nameInput = form.querySelector('input[name="name"]');
+        const folderInput = form.querySelector('select[name="folder"]');
+        const imageInput = form.querySelector('select[name="backgroundImage"]');
+        const selectedImage = imageInput?.value?.trim() ?? "";
+        const enteredName = nameInput?.value?.trim() ?? "";
         const sceneData = prepareSceneData({
           name: enteredName,
-          folder: form.folder.value || null,
+          folder: folderInput?.value || null,
           img: selectedImage || null
         });
 
@@ -222,10 +213,6 @@ function prepareSceneData(data = {}) {
   const grid = prepared.grid ?? {};
 
   prepared.navigation ??= game.settings.get(MODULE_ID, SETTINGS.DEFAULT_NAVIGATION);
-  prepared.ownership = {
-    ...(prepared.ownership ?? {}),
-    default: prepared.ownership?.default ?? game.settings.get(MODULE_ID, SETTINGS.DEFAULT_PERMISSION)
-  };
   prepared.backgroundColor ??= game.settings.get(MODULE_ID, SETTINGS.DEFAULT_BACKGROUND_COLOR);
   prepared.initial = {
     x: initial.x ?? game.settings.get(MODULE_ID, SETTINGS.DEFAULT_INITIAL_X),
@@ -348,6 +335,44 @@ function formatGridTypeLabel(name) {
     .toLowerCase()
     .replace(/_/g, " ")
     .replace(/\b\w/g, char => char.toUpperCase());
+}
+
+function addBackgroundDirectoryBrowseButton(html) {
+  const root = html?.[0] ?? html;
+  if (!root) return;
+
+  const settingName = `${MODULE_ID}.${SETTINGS.BACKGROUND_IMAGE_DIRECTORY}`;
+  const input = root.querySelector(`input[name="${settingName}"]`);
+  if (!input || input.dataset.evmDirectoryPickerAttached === "true") return;
+
+  input.dataset.evmDirectoryPickerAttached = "true";
+
+  const button = document.createElement("button");
+  button.type = "button";
+  button.classList.add("file-picker");
+  button.dataset.type = "folder";
+  button.title = game.i18n.localize("FILES.BrowseTooltip");
+  button.innerHTML = '<i class="fas fa-file-import fa-fw"></i>';
+  button.addEventListener("click", event => {
+    event.preventDefault();
+    openDirectoryPicker(input);
+  });
+
+  input.insertAdjacentElement("afterend", button);
+}
+
+function openDirectoryPicker(input) {
+  const callback = path => {
+    input.value = path ?? "";
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+  };
+
+  const picker = new FilePicker({
+    type: "folder",
+    current: input.value?.trim() || "",
+    callback
+  });
+  picker.browse("data", input.value?.trim() || "");
 }
 
 const sortByLabel = createSorter(item => item.label);
