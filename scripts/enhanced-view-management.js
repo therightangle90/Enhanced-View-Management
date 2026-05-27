@@ -118,7 +118,7 @@ function registerSettings() {
   });
 
   game.settings.register(MODULE_ID, SETTINGS.DEFAULT_TOKEN_VISION, {
-    name: "Default token visibility",
+    name: "Default token vision",
     hint: "Set whether token vision is enabled on newly created scenes.",
     scope: "world",
     config: true,
@@ -170,7 +170,8 @@ function patchSceneDirectoryCreate() {
       content,
       label: game.i18n.localize("SCENES.Create"),
       callback: async html => {
-        const form = html[0].querySelector("form");
+        const form = resolveDialogForm(html);
+        if (!form) return null;
         const nameInput = form.querySelector('input[name="name"]');
         const folderInput = form.querySelector('select[name="folder"]');
         const imageInput = form.querySelector('select[name="backgroundImage"]');
@@ -351,28 +352,65 @@ function addBackgroundDirectoryBrowseButton(html) {
   button.type = "button";
   button.classList.add("file-picker");
   button.dataset.type = "folder";
-  button.title = game.i18n.localize("FILES.BrowseTooltip");
+  button.title = game.i18n.localize("EVM.BrowseDirectories");
   button.innerHTML = '<i class="fas fa-file-import fa-fw"></i>';
-  button.addEventListener("click", event => {
+  button.addEventListener("click", async event => {
     event.preventDefault();
-    openDirectoryPicker(input);
+    await openDirectoryPicker(input);
   });
 
   input.insertAdjacentElement("afterend", button);
 }
 
-function openDirectoryPicker(input) {
+async function openDirectoryPicker(input) {
   const callback = path => {
     input.value = path ?? "";
     input.dispatchEvent(new Event("change", { bubbles: true }));
   };
 
+  const current = await resolvePickerDirectory(input.value);
   const picker = new FilePicker({
     type: "folder",
-    current: input.value?.trim() || "",
+    activeSource: "data",
+    current,
     callback
   });
-  picker.browse("data", input.value?.trim() || "");
+  picker.render(true);
+}
+
+function resolveDialogForm(html) {
+  const root = html?.[0] ?? html;
+  if (!root) return null;
+  if (root instanceof HTMLFormElement) return root;
+  return root.querySelector?.("form") ?? null;
+}
+
+async function resolvePickerDirectory(path) {
+  const normalized = normalizeDirectoryPath(path);
+  if (!normalized) return "";
+
+  let current = normalized;
+  while (current) {
+    try {
+      await FilePicker.browse("data", current);
+      return current;
+    } catch (_error) {
+      current = parentDirectory(current);
+    }
+  }
+
+  return "";
+}
+
+function normalizeDirectoryPath(path) {
+  return path?.trim().replace(/\/+$/, "") ?? "";
+}
+
+function parentDirectory(path) {
+  const normalized = normalizeDirectoryPath(path);
+  if (!normalized) return "";
+  const lastSlash = normalized.lastIndexOf("/");
+  return lastSlash >= 0 ? normalized.slice(0, lastSlash) : "";
 }
 
 const sortByLabel = createSorter(item => item.label);
