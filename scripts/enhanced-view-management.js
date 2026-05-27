@@ -11,7 +11,8 @@ const SETTINGS = {
   DEFAULT_HEIGHT: "defaultHeight",
   DEFAULT_PADDING: "defaultPadding",
   DEFAULT_TOKEN_VISION: "defaultTokenVision",
-  BACKGROUND_IMAGE_DIRECTORY: "backgroundImageDirectory"
+  BACKGROUND_IMAGE_DIRECTORY: "backgroundImageDirectory",
+  WARN_SCENE_DELETE: "warnSceneDelete"
 };
 
 const IMAGE_EXTENSIONS = /\.(jpe?g|png|webp)$/i;
@@ -19,6 +20,7 @@ const IMAGE_EXTENSIONS = /\.(jpe?g|png|webp)$/i;
 Hooks.once("init", () => {
   registerSettings();
   patchSceneCreateDialog();
+  patchSceneDeleteDialog();
 });
 
 Hooks.on("renderSettingsConfig", (_app, html) => {
@@ -75,27 +77,24 @@ Hooks.on("renderDialog", (app, html) => {
   });
 
   html.parent()
-    .find(".dialog-buttons")
+    .find(".dialog-buttons, .form-footer, .dialog-button-group")
     .css({
       display: "flex",
+      "flex-direction": "row",
       gap: "6px",
-      "justify-content":
-        "flex-end",
-      margin:
-        "8px 0 0 0"
+      "justify-content": "flex-end",
+      "align-items": "center",
+      margin: "8px 0 0 0"
     });
 
   html.parent()
-    .find(
-      ".dialog-buttons button"
-    )
+    .find(".dialog-buttons button, .form-footer button, .dialog-button-group button")
     .css({
       flex: "0 0 auto",
+      width: "auto",
       height: "28px",
-      padding:
-        "0 10px",
-      "line-height":
-        "28px",
+      padding: "0 10px",
+      "line-height": "28px",
       margin: 0
     });
 
@@ -161,45 +160,285 @@ function patchSceneCreateDialog() {
     .__evmPatched = true;
 }
 
-function registerSettings() {
+function patchSceneDeleteDialog() {
 
-  for (
-    const setting of [
+  const originalStatic =
+    Scene.deleteDialog;
 
-      [SETTINGS.DEFAULT_NAVIGATION, Boolean, true],
-      [SETTINGS.DEFAULT_BACKGROUND_COLOR, String, "#000000"],
-      [SETTINGS.DEFAULT_INITIAL_X, Number, 0],
-      [SETTINGS.DEFAULT_INITIAL_Y, Number, 0],
-      [SETTINGS.DEFAULT_INITIAL_ZOOM, Number, 1],
-      [SETTINGS.DEFAULT_WIDTH, Number, 4000],
-      [SETTINGS.DEFAULT_HEIGHT, Number, 3000],
-      [SETTINGS.DEFAULT_PADDING, Number, 0.25],
-      [SETTINGS.DEFAULT_TOKEN_VISION, Boolean, false],
-      [SETTINGS.BACKGROUND_IMAGE_DIRECTORY, String, ""]
-
-    ]
+  if (
+    typeof originalStatic ===
+    "function" &&
+    !Scene.deleteDialog
+      .__evmPatched
   ) {
 
-    game.settings.register(
-      MODULE_ID,
-      setting[0],
-      {
-        scope: "world",
-        config: true,
-        type: setting[1],
-        default: setting[2]
-      }
-    );
+    Scene.deleteDialog =
+      async function (...args) {
+
+        const warn =
+          game.settings.get(
+            MODULE_ID,
+            SETTINGS
+              .WARN_SCENE_DELETE
+          );
+
+        if (warn) {
+          return originalStatic
+            .apply(this, args);
+        }
+
+        const [
+          target,
+          options = {}
+        ] = args;
+
+        const ids = [];
+
+        const pushId =
+          value => {
+            if (
+              typeof value ===
+              "string" &&
+              value
+            ) ids.push(value);
+
+            else if (
+              value?.id
+            ) ids.push(
+              value.id
+            );
+          };
+
+        if (
+          Array.isArray(
+            target
+          )
+        ) {
+          target.forEach(
+            pushId
+          );
+        }
+
+        else {
+          pushId(target);
+        }
+
+        if (
+          !ids.length &&
+          Array.isArray(
+            options?.ids
+          )
+        ) {
+          options.ids.forEach(
+            pushId
+          );
+        }
+
+        if (!ids.length) {
+          return originalStatic
+            .apply(this, args);
+        }
+
+        return this
+          .deleteDocuments(
+            ids,
+            options
+          );
+      };
+
+    Scene.deleteDialog
+      .__evmPatched = true;
   }
+
+  const originalProto =
+    Scene.prototype
+      .deleteDialog;
+
+  if (
+    typeof originalProto ===
+    "function" &&
+    !Scene.prototype
+      .deleteDialog
+      .__evmPatched
+  ) {
+
+    Scene.prototype
+      .deleteDialog =
+      async function (...args) {
+
+        const warn =
+          game.settings.get(
+            MODULE_ID,
+            SETTINGS
+              .WARN_SCENE_DELETE
+          );
+
+        if (warn) {
+          return originalProto
+            .apply(this, args);
+        }
+
+        return this.delete(
+          ...args
+        );
+      };
+
+    Scene.prototype
+      .deleteDialog
+      .__evmPatched = true;
+  }
+}
+
+function registerSettings() {
+
+  const localized = (
+    key,
+    type,
+    defaultValue
+  ) => ({
+    name:
+      `EVM.Settings.${key}.Name`,
+    hint:
+      `EVM.Settings.${key}.Hint`,
+    scope: "world",
+    config: true,
+    type,
+    default:
+      defaultValue
+  });
 
   game.settings.register(
     MODULE_ID,
-    SETTINGS.DEFAULT_GRID_TYPE,
-    {
-      scope: "world",
-      config: true,
-      type: Number,
+    SETTINGS
+      .DEFAULT_NAVIGATION,
+    localized(
+      "DefaultNavigation",
+      Boolean,
+      true
+    )
+  );
 
+  game.settings.register(
+    MODULE_ID,
+    SETTINGS
+      .DEFAULT_BACKGROUND_COLOR,
+    localized(
+      "DefaultBackgroundColor",
+      String,
+      "#000000"
+    )
+  );
+
+  game.settings.register(
+    MODULE_ID,
+    SETTINGS
+      .DEFAULT_INITIAL_X,
+    localized(
+      "DefaultInitialX",
+      Number,
+      0
+    )
+  );
+
+  game.settings.register(
+    MODULE_ID,
+    SETTINGS
+      .DEFAULT_INITIAL_Y,
+    localized(
+      "DefaultInitialY",
+      Number,
+      0
+    )
+  );
+
+  game.settings.register(
+    MODULE_ID,
+    SETTINGS
+      .DEFAULT_INITIAL_ZOOM,
+    localized(
+      "DefaultInitialZoom",
+      Number,
+      1
+    )
+  );
+
+  game.settings.register(
+    MODULE_ID,
+    SETTINGS
+      .DEFAULT_WIDTH,
+    localized(
+      "DefaultWidth",
+      Number,
+      4000
+    )
+  );
+
+  game.settings.register(
+    MODULE_ID,
+    SETTINGS
+      .DEFAULT_HEIGHT,
+    localized(
+      "DefaultHeight",
+      Number,
+      3000
+    )
+  );
+
+  game.settings.register(
+    MODULE_ID,
+    SETTINGS
+      .DEFAULT_PADDING,
+    localized(
+      "DefaultPadding",
+      Number,
+      0.25
+    )
+  );
+
+  game.settings.register(
+    MODULE_ID,
+    SETTINGS
+      .DEFAULT_TOKEN_VISION,
+    localized(
+      "DefaultTokenVision",
+      Boolean,
+      false
+    )
+  );
+
+  game.settings.register(
+    MODULE_ID,
+    SETTINGS
+      .BACKGROUND_IMAGE_DIRECTORY,
+    localized(
+      "BackgroundImageDirectory",
+      String,
+      ""
+    )
+  );
+
+  game.settings.register(
+    MODULE_ID,
+    SETTINGS
+      .WARN_SCENE_DELETE,
+    localized(
+      "WarnSceneDelete",
+      Boolean,
+      true
+    )
+  );
+
+  game.settings.register(
+    MODULE_ID,
+    SETTINGS
+      .DEFAULT_GRID_TYPE,
+    {
+      ...localized(
+        "DefaultGridType",
+        Number,
+        CONST.GRID_TYPES
+          .SQUARE
+      ),
       choices:
         Object.entries(
           CONST.GRID_TYPES
@@ -218,11 +457,7 @@ function registerSettings() {
 
           },
           {}
-        ),
-
-      default:
-        CONST.GRID_TYPES
-          .SQUARE
+        )
     }
   );
 }
