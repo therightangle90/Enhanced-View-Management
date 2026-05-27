@@ -229,13 +229,13 @@ async function buildImageChoices(directory) {
   }
 
   for (const item of listing.root) {
-    choices.push(`<option value="${item.path}">${TextEditor.escapeHTML(item.label)}</option>`);
+    choices.push(`<option value="${escapeAttribute(item.path)}">${TextEditor.escapeHTML(item.label)}</option>`);
   }
 
   for (const section of listing.sections) {
-    choices.push(`<optgroup label="${TextEditor.escapeHTML(section.label)}">`);
+    choices.push(`<optgroup label="${escapeAttribute(section.label)}">`);
     for (const item of section.images) {
-      choices.push(`<option value="${item.path}">${TextEditor.escapeHTML(item.label)}</option>`);
+      choices.push(`<option value="${escapeAttribute(item.path)}">${TextEditor.escapeHTML(item.label)}</option>`);
     }
     choices.push("</optgroup>");
   }
@@ -372,6 +372,14 @@ async function resolvePickerDirectory(path, source = "data") {
 
 function normalizeDirectoryPath(path) {
   return path?.trim().replace(/\/+$/, "") ?? "";
+}
+
+function escapeAttribute(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/"/g, "&quot;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
 }
 
 function parseDirectorySetting(path) {
