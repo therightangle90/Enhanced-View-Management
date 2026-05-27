@@ -18,25 +18,15 @@ const IMAGE_EXTENSIONS = /\.(apng|avif|bmp|gif|jpe?g|png|svg|webp)$/i;
 
 Hooks.once("init", () => {
   registerSettings();
+  patchSceneCreateDialog();
 });
 
 Hooks.on("renderSettingsConfig", (_app, html) => {
   addBackgroundDirectoryBrowseButton(html);
 });
 
-Hooks.on("renderSceneDirectory", (_app, html) => {
-  if (!game.user?.isGM) return;
-  const root = html?.find ? html : globalThis.jQuery?.(html?.[0] ?? html);
-  if (!root?.find) return;
-
-  const createButtons = root.find('button[data-action="create"], .create-entity, a.create-entity');
-  if (!createButtons.length) return;
-
-  createButtons.off("click").on("click", event => {
-    event.preventDefault();
-    event.stopImmediatePropagation();
-    void showCreateSceneDialog();
-  });
+Hooks.once("ready", () => {
+  patchSceneCreateDialog();
 });
 
 Hooks.on("preCreateScene", (scene, data) => {
@@ -182,8 +172,9 @@ function prepareSceneData(data = {}) {
   return prepared;
 }
 
-async function buildImageChoices(directory) {
-  const choices = [`<option value="">${game.i18n.localize("None")}</option>`];
+async function buildImageChoices(directory, selectedImage = "") {
+  const selectedPath = selectedImage?.trim() ?? "";
+  const choices = [`<option value=""${selectedPath ? "" : " selected"}>${game.i18n.localize("None")}</option>`];
   const configured = parseDirectorySetting(directory);
   if (!configured.path) return choices.join("");
 
@@ -197,13 +188,15 @@ async function buildImageChoices(directory) {
   }
 
   for (const item of listing.root) {
-    choices.push(`<option value="${escapeAttribute(item.path)}">${TextEditor.escapeHTML(item.label)}</option>`);
+    const selected = item.path === selectedPath ? " selected" : "";
+    choices.push(`<option value="${escapeAttribute(item.path)}"${selected}>${TextEditor.escapeHTML(item.label)}</option>`);
   }
 
   for (const section of listing.sections) {
     choices.push(`<optgroup label="${escapeAttribute(section.label)}">`);
     for (const item of section.images) {
-      choices.push(`<option value="${escapeAttribute(item.path)}">${TextEditor.escapeHTML(item.label)}</option>`);
+      const selected = item.path === selectedPath ? " selected" : "";
+      choices.push(`<option value="${escapeAttribute(item.path)}"${selected}>${TextEditor.escapeHTML(item.label)}</option>`);
     }
     choices.push("</optgroup>");
   }
@@ -244,16 +237,33 @@ async function collectFromSubdirectory(source, directory, label, sections) {
   }
 }
 
-async function showCreateSceneDialog() {
+function patchSceneCreateDialog() {
+  const SceneClass = globalThis.Scene;
+  if (!SceneClass || SceneClass._evmCreateDialogPatched) return;
+
+  const originalCreateDialog = SceneClass.createDialog;
+  if (typeof originalCreateDialog !== "function") return;
+
+  SceneClass._evmCreateDialogPatched = true;
+  SceneClass.createDialog = async function createDialogPatched(data = {}, options = {}) {
+    if (!game.user?.isGM) return originalCreateDialog.call(this, data, options);
+    return showCreateSceneDialog(data);
+  };
+}
+
+async function showCreateSceneDialog(initialData = {}) {
   const directory = game.settings.get(MODULE_ID, SETTINGS.BACKGROUND_IMAGE_DIRECTORY).trim();
-  const imageChoices = await buildImageChoices(directory);
-  const folderChoices = getFolderChoices();
+  const initialImage = initialData.background?.src?.trim() || initialData.img?.trim() || "";
+  const imageChoices = await buildImageChoices(directory, initialImage);
+  const initialName = initialData.name?.trim() || "";
+  const initialFolder = initialData.folder ?? "";
+  const folderChoices = getFolderChoices(initialFolder);
 
   const content = `
     <form>
       <div class="form-group">
         <label>${game.i18n.localize("Name")}</label>
-        <input type="text" name="name" />
+        <input type="text" name="name" value="${escapeAttribute(initialName)}" />
       </div>
       <div class="form-group">
         <label>${game.i18n.localize("FOLDER.Folder")}</label>
@@ -306,14 +316,15 @@ function resolveDialogForm(html) {
   return root?.querySelector?.("form") ?? null;
 }
 
-function getFolderChoices() {
+function getFolderChoices(selectedFolderId = "") {
   const folders = game.folders.contents
     .filter(folder => folder.type === "Scene")
     .sort((a, b) => a.name.localeCompare(b.name));
 
-  const choices = [`<option value="">${game.i18n.localize("None")}</option>`];
+  const choices = [`<option value=""${selectedFolderId ? "" : " selected"}>${game.i18n.localize("None")}</option>`];
   for (const folder of folders) {
-    choices.push(`<option value="${escapeAttribute(folder.id)}">${TextEditor.escapeHTML(folder.name)}</option>`);
+    const selected = folder.id === selectedFolderId ? " selected" : "";
+    choices.push(`<option value="${escapeAttribute(folder.id)}"${selected}>${TextEditor.escapeHTML(folder.name)}</option>`);
   }
   return choices.join("");
 }
