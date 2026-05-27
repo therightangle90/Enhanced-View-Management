@@ -55,7 +55,8 @@ Hooks.on("renderDialog", (app, html) => {
 
   root.css({
     width: `${widest}px`,
-    "max-width": "95vw"
+    "max-width": "95vw",
+    height: "auto"
   });
 
   html.find(".form-group")
@@ -85,11 +86,6 @@ Hooks.on("renderDialog", (app, html) => {
         "flex-end",
       margin:
         "4px 0 0 0"
-    });
-
-  html
-    .css({
-      "padding-bottom": "4px"
     });
 
   html.parent()
