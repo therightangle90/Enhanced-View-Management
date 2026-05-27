@@ -25,7 +25,14 @@ Hooks.once("init", () => {
 
 Hooks.on("renderDialog", (app, html) => {
 
-  if (app.title !== "Create New Scene") return;
+  const isCustomDialog =
+    app.options
+      ?.classes
+      ?.includes(
+        "evm-create-scene-dialog"
+      );
+
+  if (!isCustomDialog) return;
 
   const root =
     html.closest(".app");
@@ -695,6 +702,10 @@ ${escapeHtml(p.name)}
       const d =
         new Dialog({
 
+        classes: [
+          "evm-create-scene-dialog"
+        ],
+
         title:
           "Create New Scene",
 
@@ -805,7 +816,7 @@ async function buildImageChoices(
       files.length
     ) {
       choices.push(
-`<optgroup label="${escapeAttribute(decodeURIComponent(group))}">`
+`<optgroup label="${escapeAttribute(safeDecodeURIComponent(group))}">`
       );
     }
 
@@ -884,11 +895,25 @@ ${escapeHtml(f.name)}
   ].join("");
 }
 
+function safeDecodeURIComponent(
+  value
+) {
+
+  try {
+    return decodeURIComponent(
+      value
+    );
+  }
+  catch {
+    return value;
+  }
+}
+
 function displayFileName(
   path
 ) {
 
-  return decodeURIComponent(
+  return safeDecodeURIComponent(
     fileName(
       path
     )
