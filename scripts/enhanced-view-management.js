@@ -14,7 +14,7 @@ const SETTINGS = {
   BACKGROUND_IMAGE_DIRECTORY: "backgroundImageDirectory"
 };
 
-const IMAGE_EXTENSIONS = /\.(apng|avif|bmp|gif|jpe?g|png|svg|webp)$/i;
+const IMAGE_EXTENSIONS = /\.(jpe?g|png|webp)$/i;
 
 Hooks.once("init", () => {
   registerSettings();
@@ -25,481 +25,676 @@ Hooks.on("renderSettingsConfig", (_app, html) => {
   addBackgroundDirectoryBrowseButton(html);
 });
 
-Hooks.on("preCreateScene", (scene, data) => {
-  const prepared = prepareSceneData(data);
-  const diff = foundry.utils.diffObject(data, prepared);
-  if (!foundry.utils.isEmpty(diff)) scene.updateSource(diff);
+Hooks.on("renderDialog", (app, html) => {
+
+  if (app.title !== "Create New Scene") return;
+
+  const root =
+    html.closest(".app");
+
+  let widest = 420;
+
+  html.find("option").each(
+    (_i, el) => {
+
+      const len =
+        $(el)
+          .text()
+          .trim()
+          .length;
+
+      widest =
+        Math.max(
+          widest,
+          260 + (len * 7)
+        );
+    }
+  );
+
+  root.css({
+    width: `${widest}px`,
+    "max-width": "95vw"
+  });
+
+  html.find(".form-group")
+    .css({
+      display: "grid",
+      "grid-template-columns":
+        "180px 1fr",
+      gap: "8px",
+      "align-items":
+        "center",
+      margin:
+        "0 0 6px 0"
+    });
+
+  html.find(
+    "select,input"
+  ).css({
+    width: "100%"
+  });
+
+  html.parent()
+    .find(".dialog-buttons")
+    .css({
+      display: "flex",
+      gap: "6px",
+      "justify-content":
+        "flex-end",
+      margin:
+        "8px 0 0 0"
+    });
+
+  html.parent()
+    .find(
+      ".dialog-buttons button"
+    )
+    .css({
+      flex: "0 0 auto",
+      height: "28px",
+      padding:
+        "0 10px",
+      "line-height":
+        "28px",
+      margin: 0
+    });
+
 });
 
-function patchSceneCreateDialog() {
-  const originalCreateDialog = Scene.createDialog;
-  if (typeof originalCreateDialog !== "function") return;
-  if (Scene.createDialog.__evmPatched) return;
+Hooks.on(
+  "preCreateScene",
+  (scene, data) => {
 
-  const patchedCreateDialog = async function (...args) {
-    ui.notifications.info("i clicked new scene");
-    try {
-      return await showCreateSceneDialog();
-    } catch (error) {
-      console.error(`${MODULE_ID} | Failed to open custom create scene dialog`, error);
-      ui.notifications.error("Could not open custom scene dialog. Opening default create dialog instead.");
-      return originalCreateDialog.apply(this, args);
+    const prepared =
+      prepareSceneData(data);
+
+    const diff =
+      foundry.utils.diffObject(
+        data,
+        prepared
+      );
+
+    if (
+      !foundry.utils.isEmpty(
+        diff
+      )
+    ) {
+      scene.updateSource(diff);
     }
-  };
+  }
+);
 
-  patchedCreateDialog.__evmPatched = true;
-  patchedCreateDialog.__evmOriginal = originalCreateDialog;
-  Scene.createDialog = patchedCreateDialog;
+function patchSceneCreateDialog() {
+
+  const original =
+    Scene.createDialog;
+
+  if (
+    typeof original !==
+    "function"
+  ) return;
+
+  if (
+    Scene.createDialog
+      .__evmPatched
+  ) return;
+
+  Scene.createDialog =
+    async function (...args) {
+
+      try {
+        return await
+          showCreateSceneDialog();
+      }
+      catch (err) {
+
+        console.error(err);
+
+        return original.apply(
+          this,
+          args
+        );
+      }
+    };
+
+  Scene.createDialog
+    .__evmPatched = true;
 }
 
 function registerSettings() {
-  game.settings.register(MODULE_ID, SETTINGS.DEFAULT_NAVIGATION, {
-    name: "Default show in navigation",
-    hint: "Set whether newly created scenes are shown in navigation by default.",
-    scope: "world",
-    config: true,
-    type: Boolean,
-    default: true
-  });
 
-  game.settings.register(MODULE_ID, SETTINGS.DEFAULT_BACKGROUND_COLOR, {
-    name: "Default background color",
-    hint: "Set the default background color for newly created scenes.",
-    scope: "world",
-    config: true,
-    type: String,
-    default: "#000000"
-  });
+  for (
+    const setting of [
 
-  game.settings.register(MODULE_ID, SETTINGS.DEFAULT_INITIAL_X, {
-    name: "Default initial view X",
-    hint: "Set the default initial view X position for newly created scenes.",
-    scope: "world",
-    config: true,
-    type: Number,
-    default: 0
-  });
+      [SETTINGS.DEFAULT_NAVIGATION, Boolean, true],
+      [SETTINGS.DEFAULT_BACKGROUND_COLOR, String, "#000000"],
+      [SETTINGS.DEFAULT_INITIAL_X, Number, 0],
+      [SETTINGS.DEFAULT_INITIAL_Y, Number, 0],
+      [SETTINGS.DEFAULT_INITIAL_ZOOM, Number, 1],
+      [SETTINGS.DEFAULT_WIDTH, Number, 4000],
+      [SETTINGS.DEFAULT_HEIGHT, Number, 3000],
+      [SETTINGS.DEFAULT_PADDING, Number, 0.25],
+      [SETTINGS.DEFAULT_TOKEN_VISION, Boolean, false],
+      [SETTINGS.BACKGROUND_IMAGE_DIRECTORY, String, ""]
 
-  game.settings.register(MODULE_ID, SETTINGS.DEFAULT_INITIAL_Y, {
-    name: "Default initial view Y",
-    hint: "Set the default initial view Y position for newly created scenes.",
-    scope: "world",
-    config: true,
-    type: Number,
-    default: 0
-  });
+    ]
+  ) {
 
-  game.settings.register(MODULE_ID, SETTINGS.DEFAULT_INITIAL_ZOOM, {
-    name: "Default initial zoom",
-    hint: "Set the default initial zoom level for newly created scenes.",
-    scope: "world",
-    config: true,
-    type: Number,
-    default: 1
-  });
+    game.settings.register(
+      MODULE_ID,
+      setting[0],
+      {
+        scope: "world",
+        config: true,
+        type: setting[1],
+        default: setting[2]
+      }
+    );
+  }
 
-  game.settings.register(MODULE_ID, SETTINGS.DEFAULT_GRID_TYPE, {
-    name: "Default grid type",
-    hint: "Set the default grid type for newly created scenes.",
-    scope: "world",
-    config: true,
-    type: Number,
-    choices: Object.entries(CONST.GRID_TYPES).reduce((choices, [name, value]) => {
-      choices[value] = formatGridTypeLabel(name);
-      return choices;
-    }, {}),
-    default: CONST.GRID_TYPES.SQUARE
-  });
+  game.settings.register(
+    MODULE_ID,
+    SETTINGS.DEFAULT_GRID_TYPE,
+    {
+      scope: "world",
+      config: true,
+      type: Number,
 
-  game.settings.register(MODULE_ID, SETTINGS.DEFAULT_WIDTH, {
-    name: "Default scene width",
-    hint: "Set the default width for newly created scenes.",
-    scope: "world",
-    config: true,
-    type: Number,
-    default: 4000
-  });
+      choices:
+        Object.entries(
+          CONST.GRID_TYPES
+        ).reduce(
+          (
+            o,
+            [n, v]
+          ) => {
 
-  game.settings.register(MODULE_ID, SETTINGS.DEFAULT_HEIGHT, {
-    name: "Default scene height",
-    hint: "Set the default height for newly created scenes.",
-    scope: "world",
-    config: true,
-    type: Number,
-    default: 3000
-  });
+            o[v] =
+              formatGridTypeLabel(
+                n
+              );
 
-  game.settings.register(MODULE_ID, SETTINGS.DEFAULT_PADDING, {
-    name: "Default padding percentage",
-    hint: "Set the default scene padding value for newly created scenes.",
-    scope: "world",
-    config: true,
-    type: Number,
-    default: 0.25
-  });
+            return o;
 
-  game.settings.register(MODULE_ID, SETTINGS.DEFAULT_TOKEN_VISION, {
-    name: "Default token vision",
-    hint: "Set whether token vision is enabled on newly created scenes.",
-    scope: "world",
-    config: true,
-    type: Boolean,
-    default: false
-  });
+          },
+          {}
+        ),
 
-  game.settings.register(MODULE_ID, SETTINGS.BACKGROUND_IMAGE_DIRECTORY, {
-    name: "Background image directory",
-    hint: "Directory to scan for scene background images when creating scenes.",
-    scope: "world",
-    config: true,
-    type: String,
-    default: ""
-  });
+      default:
+        CONST.GRID_TYPES
+          .SQUARE
+    }
+  );
 }
 
-function prepareSceneData(data = {}) {
-  const prepared = foundry.utils.deepClone(data);
-  const initial = prepared.initial ?? {};
-  const grid = prepared.grid ?? {};
-  const background = prepared.background ?? {};
+function prepareSceneData(
+  data = {}
+) {
 
-  prepared.navigation ??= game.settings.get(MODULE_ID, SETTINGS.DEFAULT_NAVIGATION);
-  prepared.backgroundColor ??= game.settings.get(MODULE_ID, SETTINGS.DEFAULT_BACKGROUND_COLOR);
-  prepared.initial = {
-    x: initial.x ?? game.settings.get(MODULE_ID, SETTINGS.DEFAULT_INITIAL_X),
-    y: initial.y ?? game.settings.get(MODULE_ID, SETTINGS.DEFAULT_INITIAL_Y),
-    scale: initial.scale ?? game.settings.get(MODULE_ID, SETTINGS.DEFAULT_INITIAL_ZOOM)
-  };
-  prepared.grid = {
-    ...grid,
-    type: grid.type ?? game.settings.get(MODULE_ID, SETTINGS.DEFAULT_GRID_TYPE)
-  };
-  prepared.background = { ...background };
-  prepared.background.src ??= prepared.img ?? "";
-  prepared.width ??= game.settings.get(MODULE_ID, SETTINGS.DEFAULT_WIDTH);
-  prepared.height ??= game.settings.get(MODULE_ID, SETTINGS.DEFAULT_HEIGHT);
-  prepared.padding ??= game.settings.get(MODULE_ID, SETTINGS.DEFAULT_PADDING);
-  prepared.tokenVision ??= game.settings.get(MODULE_ID, SETTINGS.DEFAULT_TOKEN_VISION);
+  const prepared =
+    foundry.utils
+      .deepClone(
+        data
+      );
+
+  prepared.navigation ??=
+    game.settings.get(
+      MODULE_ID,
+      SETTINGS
+        .DEFAULT_NAVIGATION
+    );
+
+  prepared.backgroundColor ??=
+    game.settings.get(
+      MODULE_ID,
+      SETTINGS
+        .DEFAULT_BACKGROUND_COLOR
+    );
+
+  prepared.width ??=
+    game.settings.get(
+      MODULE_ID,
+      SETTINGS
+        .DEFAULT_WIDTH
+    );
+
+  prepared.height ??=
+    game.settings.get(
+      MODULE_ID,
+      SETTINGS
+        .DEFAULT_HEIGHT
+    );
+
+  prepared.padding ??=
+    game.settings.get(
+      MODULE_ID,
+      SETTINGS
+        .DEFAULT_PADDING
+    );
+
+  prepared.tokenVision ??=
+    game.settings.get(
+      MODULE_ID,
+      SETTINGS
+        .DEFAULT_TOKEN_VISION
+    );
 
   return prepared;
 }
 
-async function buildImageChoices(directory) {
-  const choices = [`<option value="">${game.i18n.localize("None")}</option>`];
-  const configured = parseDirectorySetting(directory);
-  if (!configured.path) return choices.join("");
-
-  let listing;
-  try {
-    listing = await collectImageListing(configured.source, configured.path);
-  } catch (error) {
-    console.warn(`${MODULE_ID} | Failed to browse image directory`, error);
-    ui.notifications.warn(game.i18n.format("EVM.BrowseDirectoryFailed", { directory }));
-    return choices.join("");
-  }
-
-  for (const item of listing.root) {
-    choices.push(`<option value="${escapeAttribute(item.path)}">${TextEditor.escapeHTML(item.label)}</option>`);
-  }
-
-  for (const section of listing.sections) {
-    choices.push(`<optgroup label="${escapeAttribute(section.label)}">`);
-    for (const item of section.images) {
-      choices.push(`<option value="${escapeAttribute(item.path)}">${TextEditor.escapeHTML(item.label)}</option>`);
-    }
-    choices.push("</optgroup>");
-  }
-
-  return choices.join("");
-}
-
-async function collectImageListing(rootSource, rootDirectory) {
-  const { source, listing: rootBrowse } = await browseDirectoryWithFallback(rootSource, rootDirectory);
-
-  const root = (rootBrowse.files ?? [])
-    .filter(isImageFile)
-    .map(path => ({ path, label: fileName(path) }))
-    .sort(sortByLabel);
-
-  const sections = [];
-  const dirs = [...(rootBrowse.dirs ?? [])].sort(sortByPathName);
-  for (const dir of dirs) {
-    await collectFromSubdirectory(source, dir, relativeDirName(rootDirectory, dir), sections);
-  }
-
-  return { root, sections };
-}
-
-async function collectFromSubdirectory(source, directory, label, sections) {
-  const browse = await FilePicker.browse(source, directory);
-  const images = (browse.files ?? [])
-    .filter(isImageFile)
-    .map(path => ({ path, label: fileName(path) }))
-    .sort(sortByLabel);
-
-  if (images.length) sections.push({ label, images });
-
-  const dirs = [...(browse.dirs ?? [])].sort(sortByPathName);
-  for (const dir of dirs) {
-    const childLabel = `${label}/${relativeDirName(directory, dir)}`;
-    await collectFromSubdirectory(source, dir, childLabel, sections);
-  }
-}
-
 async function showCreateSceneDialog() {
-  const directory = game.settings.get(MODULE_ID, SETTINGS.BACKGROUND_IMAGE_DIRECTORY).trim();
-  const imageChoices = await buildImageChoices(directory);
-  const folderChoices = getFolderChoices();
+
+  const directory =
+    game.settings
+      .get(
+        MODULE_ID,
+        SETTINGS
+          .BACKGROUND_IMAGE_DIRECTORY
+      )
+      .trim();
+
+  const imageChoices =
+    await buildImageChoices(
+      directory
+    );
+
+  const folders =
+    (
+      game.folders
+        ?.contents ?? []
+    )
+    .filter(
+      f =>
+        f.type ===
+        "Scene"
+    )
+    .sort(
+      (a, b) =>
+        a.name
+          .localeCompare(
+            b.name
+          )
+    );
+
+  const playlists =
+    (
+      game.playlists
+        ?.contents ?? []
+    )
+    .sort(
+      (a, b) =>
+        a.name
+          .localeCompare(
+            b.name
+          )
+    );
 
   const content = `
-    <form>
-      <p>Copilot is fucking useless</p>
-      <div class="form-group">
-        <label>${game.i18n.localize("Name")}</label>
-        <input id="evm-scene-name" type="text" placeholder="${game.i18n.localize("Name")}" />
-      </div>
-      <div class="form-group">
-        <label>${game.i18n.localize("FOLDER.Folder")}</label>
-        <select id="evm-scene-folder">${folderChoices}</select>
-      </div>
-      <div class="form-group">
-        <label>${game.i18n.localize("EVM.BackgroundImage")}</label>
-        <select id="evm-scene-background">${imageChoices}</select>
-      </div>
-    </form>
-  `;
+<form>
 
-  // Retrieve a form field value from any Foundry dialog callback argument:
-  // jQuery wrapper (v11/v12), native HTMLElement, or ApplicationV2 instance (v13+).
-  const getFieldValue = (container, id) => {
-    if (typeof container?.find === "function") return container.find(`#${id}`).val() ?? "";
-    const el = container instanceof Element ? container : container?.element ?? container?.[0];
-    return el?.querySelector?.(`#${id}`)?.value ?? "";
-  };
+<div class="form-group">
+<label>Name</label>
+<input
+id="evm-scene-name"
+type="text"
+/>
+</div>
 
-  const createScene = async container => {
-    const enteredName = getFieldValue(container, "evm-scene-name").trim();
-    if (!enteredName) {
-      ui.notifications.warn(game.i18n.localize("EVM.NameRequired"));
-      return null;
+${
+folders.length
+? `
+<div class="form-group">
+<label>Folder</label>
+<select id="evm-scene-folder">
+${getFolderChoices()}
+</select>
+</div>
+`
+: ""
+}
+
+<div class="form-group">
+<label>Background Image</label>
+<select id="evm-scene-background">
+${imageChoices}
+</select>
+</div>
+
+<div class="form-group">
+<label>Scene Playlist</label>
+<select id="evm-scene-playlist">
+
+<option value="">
+None
+</option>
+
+${
+playlists.map(
+p =>
+`<option value="${p.id}">
+${p.name}
+</option>`
+).join("")
+}
+
+</select>
+</div>
+
+</form>
+`;
+
+  const createScene =
+    async html => {
+
+    let name =
+      html.find(
+        "#evm-scene-name"
+      )
+      .val()
+      ?.trim() ?? "";
+
+    const folder =
+      html.find(
+        "#evm-scene-folder"
+      )
+      .val() ||
+      null;
+
+    const image =
+      html.find(
+        "#evm-scene-background"
+      )
+      .val() ||
+      "";
+
+    const playlist =
+      html.find(
+        "#evm-scene-playlist"
+      )
+      .val() ||
+      null;
+
+    if (
+      !name &&
+      image
+    ) {
+      name =
+        displayFileName(
+          image
+        );
     }
-    const selectedFolder = getFieldValue(container, "evm-scene-folder") || null;
-    const selectedImage = getFieldValue(container, "evm-scene-background") || "";
-    const sceneData = { name: enteredName, folder: selectedFolder };
-    if (selectedImage) sceneData.background = { src: selectedImage };
-    return Scene.create(prepareSceneData(sceneData));
+
+    if (!name) {
+
+      name =
+        Scene.implementation
+          .defaultName?.() ??
+        game.i18n.localize(
+          "SCENES.Scene"
+        ) ??
+        "Scene";
+    }
+
+    const sceneData = {
+      name,
+      folder
+    };
+
+    if (image) {
+      sceneData.background = {
+        src: image
+      };
+    }
+
+    if (playlist) {
+      sceneData.playlist =
+        playlist;
+    }
+
+    return Scene.create(
+      prepareSceneData(
+        sceneData
+      )
+    );
   };
 
-  // Foundry v13+ removed Dialog in favour of DialogV2.
-  const DialogV2 = foundry?.applications?.api?.DialogV2;
-  if (DialogV2) {
-    return DialogV2.wait({
-      window: { title: game.i18n.localize("SCENES.Create") },
-      content,
-      rejectClose: false,
-      render: (_event, app) => app.element?.querySelector("#evm-scene-name")?.focus(),
-      buttons: [
-        {
-          action: "create",
-          icon: "fas fa-check",
-          label: game.i18n.localize("SCENES.Create"),
-          default: true,
-          callback: (_event, _button, app) => createScene(app)
+  return new Promise(
+    resolve => {
+
+      const d =
+        new Dialog({
+
+        title:
+          "Create New Scene",
+
+        content,
+
+        buttons: {
+
+          create: {
+
+            icon:
+              '<i class="fas fa-check"></i>',
+
+            label:
+              "Create",
+
+            callback:
+              async html =>
+                resolve(
+                  await createScene(
+                    html
+                  )
+                )
+          },
+
+          cancel: {
+
+            icon:
+              '<i class="fas fa-times"></i>',
+
+            label:
+              "Cancel",
+
+            callback:
+              () =>
+                resolve(
+                  null
+                )
+          }
         },
-        {
-          action: "cancel",
-          icon: "fas fa-times",
-          label: game.i18n.localize("Cancel"),
-          callback: () => null
-        }
-      ]
-    });
+
+        default:
+          "create",
+
+        close:
+          () =>
+            resolve(
+              null
+            )
+
+      });
+
+      d.render(
+        true
+      );
+    }
+  );
+}
+
+async function buildImageChoices(
+  directory
+) {
+
+  const choices = [
+    `<option value="">None</option>`
+  ];
+
+  if (
+    !directory
+  ) {
+    return choices
+      .join("");
   }
 
-  // Classic Dialog — Foundry v11/v12.
-  return new Promise(resolve => {
-    const d = new Dialog({
-      title: game.i18n.localize("SCENES.Create"),
-      content,
-      buttons: {
-        create: {
-          icon: '<i class="fas fa-check"></i>',
-          label: game.i18n.localize("SCENES.Create"),
-          callback: async html => resolve(await createScene(html))
-        },
-        cancel: {
-          icon: '<i class="fas fa-times"></i>',
-          label: game.i18n.localize("Cancel"),
-          callback: () => resolve(null)
-        }
-      },
-      default: "create",
-      close: () => resolve(null),
-      render: html => {
-        const el = (typeof html?.find === "function")
-          ? html.find("#evm-scene-name")[0]
-          : html?.querySelector?.("#evm-scene-name");
-        el?.focus();
-      }
-    });
-    d.render(true);
-  });
-}
+  async function scan(
+    path,
+    group = null
+  ) {
 
-function getFolderChoices(selectedFolderId = null) {
-  const folderCollection = game.folders?.contents ?? (game.folders ? Array.from(game.folders) : []);
-  const folders = folderCollection
-    .filter(folder => folder.type === "Scene")
-    .sort((a, b) => a.name.localeCompare(b.name));
+    let browse;
 
-  const choices = [`<option value=""${selectedFolderId ? "" : " selected"}>${game.i18n.localize("None")}</option>`];
-  for (const folder of folders) {
-    const selected = folder.id === selectedFolderId ? " selected" : "";
-    choices.push(`<option value="${escapeAttribute(folder.id)}"${selected}>${TextEditor.escapeHTML(folder.name)}</option>`);
+    try {
+
+      browse =
+        await FilePicker.browse(
+          "data",
+          path
+        );
+
+    }
+    catch {
+      return;
+    }
+
+    const files =
+      (
+        browse.files ??
+        []
+      )
+      .filter(
+        f =>
+          IMAGE_EXTENSIONS
+            .test(f)
+      )
+      .sort();
+
+    if (
+      group &&
+      files.length
+    ) {
+      choices.push(
+`<optgroup label="${decodeURIComponent(group)}">`
+      );
+    }
+
+    for (
+      const file
+      of files
+    ) {
+
+      choices.push(
+`<option value="${file}">
+${displayFileName(file)}
+</option>`
+      );
+    }
+
+    if (
+      group &&
+      files.length
+    ) {
+      choices.push(
+        "</optgroup>"
+      );
+    }
+
+    for (
+      const dir
+      of (
+        browse.dirs ??
+        []
+      )
+      .sort()
+    ) {
+
+      await scan(
+        dir,
+        fileName(
+          dir
+        )
+      );
+    }
   }
-  return choices.join("");
+
+  await scan(
+    directory
+  );
+
+  return choices
+    .join("");
 }
 
-function isImageFile(path) {
-  return IMAGE_EXTENSIONS.test(path);
+function getFolderChoices() {
+
+  return [
+
+    `<option value="">
+None
+</option>`,
+
+    ...(
+      game.folders
+        ?.contents ??
+      []
+    )
+    .filter(
+      f =>
+        f.type ===
+        "Scene"
+    )
+    .map(
+      f =>
+`<option value="${f.id}">
+${f.name}
+</option>`
+    )
+
+  ].join("");
 }
 
-function fileName(path) {
-  return path.split("/").pop() ?? path;
+function displayFileName(
+  path
+) {
+
+  return decodeURIComponent(
+    fileName(
+      path
+    )
+  )
+  .replace(
+    /\.[^.]+$/,
+    ""
+  );
 }
 
-function relativeDirName(parent, child) {
-  const normalizedParent = parent.replace(/\/+$/, "");
-  const normalizedChild = child.replace(/\/+$/, "");
-  if (!normalizedChild.startsWith(`${normalizedParent}/`)) return normalizedChild;
-  return normalizedChild.slice(normalizedParent.length + 1);
+function fileName(
+  path
+) {
+
+  return path
+    .split("/")
+    .pop() ??
+    path;
 }
 
-function formatGridTypeLabel(name) {
+function addBackgroundDirectoryBrowseButton(
+  html
+) {}
+
+function formatGridTypeLabel(
+  name
+) {
+
   return name
     .toLowerCase()
-    .replace(/_/g, " ")
-    .replace(/\b\w/g, char => char.toUpperCase());
-}
-
-function addBackgroundDirectoryBrowseButton(html) {
-  const root = html?.[0] ?? html;
-  if (!root) return;
-
-  const settingName = `${MODULE_ID}.${SETTINGS.BACKGROUND_IMAGE_DIRECTORY}`;
-  const input = root.querySelector(`input[name="${settingName}"]`);
-  if (!input || input.dataset.evmDirectoryPickerAttached === "true") return;
-
-  input.dataset.evmDirectoryPickerAttached = "true";
-
-  const button = document.createElement("button");
-  button.type = "button";
-  button.classList.add("file-picker");
-  button.dataset.type = "folder";
-  button.title = game.i18n.localize("EVM.BrowseDirectories");
-  button.innerHTML = '<i class="fas fa-file-import fa-fw"></i>';
-  button.addEventListener("click", async event => {
-    event.preventDefault();
-    await openDirectoryPicker(input);
-  });
-
-  input.insertAdjacentElement("afterend", button);
-}
-
-async function openDirectoryPicker(input) {
-  const configured = parseDirectorySetting(input.value);
-  let picker;
-  const callback = path => {
-    const source = picker?.activeSource ?? configured.source;
-    input.value = formatDirectorySettingValue(source, path);
-    input.dispatchEvent(new Event("change", { bubbles: true }));
-  };
-
-  const resolved = await resolvePickerDirectory(configured.path, configured.source);
-  picker = new FilePicker({
-    type: "folder",
-    activeSource: resolved.source,
-    current: resolved.path,
-    callback
-  });
-  picker.render(true);
-}
-
-async function resolvePickerDirectory(path, source = "data") {
-  const normalized = normalizeDirectoryPath(path);
-  if (!normalized) return { source, path: "" };
-
-  let current = normalized;
-  let activeSource = source;
-  while (current) {
-    try {
-      const result = await browseDirectoryWithFallback(activeSource, current);
-      return { source: result.source, path: current };
-    } catch (_error) {
-      current = parentDirectory(current);
-    }
-  }
-
-  return { source: activeSource, path: "" };
-}
-
-function normalizeDirectoryPath(path) {
-  return path?.trim().replace(/\/+$/, "") ?? "";
-}
-
-function escapeAttribute(value) {
-  return String(value ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/'/g, "&#39;")
-    .replace(/"/g, "&quot;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
-}
-
-function parseDirectorySetting(path) {
-  const raw = path?.trim() ?? "";
-  if (!raw) return { source: "data", path: "" };
-  const sourceMatch = raw.match(/^\[([^\]]+)\]\s*(.+)$/);
-  if (!sourceMatch) return { source: "data", path: normalizeDirectoryPath(raw) };
-  return {
-    source: sourceMatch[1]?.trim() || "data",
-    path: normalizeDirectoryPath(sourceMatch[2] ?? "")
-  };
-}
-
-function formatDirectorySettingValue(source, path) {
-  const normalizedPath = normalizeDirectoryPath(path);
-  if (!normalizedPath) return "";
-  if (!source || source === "data") return normalizedPath;
-  return `[${source}] ${normalizedPath}`;
-}
-
-async function browseDirectoryWithFallback(source, directory) {
-  const candidates = [...new Set([source, "data", "public"])];
-  let lastError;
-  for (const candidate of candidates) {
-    try {
-      return {
-        source: candidate,
-        listing: await FilePicker.browse(candidate, directory)
-      };
-    } catch (error) {
-      lastError = error;
-    }
-  }
-  throw lastError;
-}
-
-function parentDirectory(path) {
-  const normalized = normalizeDirectoryPath(path);
-  if (!normalized) return "";
-  const lastSlash = normalized.lastIndexOf("/");
-  return lastSlash >= 0 ? normalized.slice(0, lastSlash) : "";
-}
-
-const sortByLabel = createSorter(item => item.label);
-const sortByPathName = createSorter(item => fileName(item));
-
-function createSorter(keyFn) {
-  return (a, b) => keyFn(a).localeCompare(keyFn(b), undefined, { sensitivity: "base" });
+    .replace(
+      /_/g,
+      " "
+    )
+    .replace(
+      /\b\w/g,
+      c =>
+        c.toUpperCase()
+    );
 }
