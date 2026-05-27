@@ -609,9 +609,10 @@ None
 ${
 playlists.map(
 p =>
-`<option value="${escapeAttribute(p.id)}">
-${escapeHtml(p.name)}
-</option>`
+createOptionMarkup(
+  p.id,
+  p.name
+)
 ).join("")
 }
 
@@ -816,7 +817,7 @@ async function buildImageChoices(
       files.length
     ) {
       choices.push(
-`<optgroup label="${escapeAttribute(safeDecodeURIComponent(group))}">`
+`<optgroup label="${escapeAttribute(group)}">`
       );
     }
 
@@ -826,9 +827,10 @@ async function buildImageChoices(
     ) {
 
       choices.push(
-`<option value="${escapeAttribute(file)}">
-${escapeHtml(displayFileName(file))}
-</option>`
+createOptionMarkup(
+  file,
+  displayFileName(file)
+)
       );
     }
 
@@ -887,12 +889,23 @@ None
     )
     .map(
       f =>
-`<option value="${escapeAttribute(f.id)}">
-${escapeHtml(f.name)}
-</option>`
+createOptionMarkup(
+  f.id,
+  f.name
+)
     )
 
   ].join("");
+}
+
+function createOptionMarkup(
+  value,
+  label
+) {
+
+  return `<option value="${escapeAttribute(value)}">
+${escapeHtml(label)}
+</option>`;
 }
 
 function safeDecodeURIComponent(
