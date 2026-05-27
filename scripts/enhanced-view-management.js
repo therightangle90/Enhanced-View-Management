@@ -11,46 +11,30 @@ const SETTINGS = {
   DEFAULT_HEIGHT: "defaultHeight",
   DEFAULT_PADDING: "defaultPadding",
   DEFAULT_TOKEN_VISION: "defaultTokenVision",
-  BACKGROUND_IMAGE_DIRECTORY: "backgroundImageDirectory",
-  WARN_SCENE_DELETE: "warnSceneDelete"
+  BACKGROUND_IMAGE_DIRECTORY: "backgroundImageDirectory"
 };
 
-const IMAGE_EXTENSIONS = /\.(apng|avif|bmp|gif|jpe?g|png|svg|webp)$/i;
-const MIN_DIALOG_WIDTH = 420;
-const PIXELS_PER_CHARACTER = 7;
+const IMAGE_EXTENSIONS = /\.(jpe?g|png|webp)$/i;
 
 Hooks.once("init", () => {
   registerSettings();
-});
-
-Hooks.once("ready", () => {
-  installDialogPatches();
-});
-
-function installDialogPatches() {
   patchSceneCreateDialog();
-  patchSceneDeleteDialog();
-}
+});
+
+Hooks.on("renderSettingsConfig", (_app, html) => {
+  addBackgroundDirectoryBrowseButton(html);
+});
 
 Hooks.on("renderDialog", (app, html) => {
 
-  const $html = asJQuery(html);
-
-  const isCustomDialog =
-    app.options
-      ?.classes
-      ?.includes(
-        "evm-create-scene-dialog"
-      );
-
-  if (!isCustomDialog) return;
+  if (app.title !== "Create New Scene") return;
 
   const root =
-    $html.closest(".app");
+    html.closest(".app");
 
-  let widest = MIN_DIALOG_WIDTH;
+  let widest = 420;
 
-  $html.find("option").each(
+  html.find("option").each(
     (_i, el) => {
 
       const len =
@@ -62,7 +46,7 @@ Hooks.on("renderDialog", (app, html) => {
       widest =
         Math.max(
           widest,
-          260 + (len * PIXELS_PER_CHARACTER)
+          260 + (len * 7)
         );
     }
   );
@@ -72,7 +56,7 @@ Hooks.on("renderDialog", (app, html) => {
     "max-width": "95vw"
   });
 
-  $html.find(".form-group")
+  html.find(".form-group")
     .css({
       display: "grid",
       "grid-template-columns":
@@ -84,31 +68,34 @@ Hooks.on("renderDialog", (app, html) => {
         "0 0 6px 0"
     });
 
-  $html.find(
+  html.find(
     "select,input"
   ).css({
     width: "100%"
   });
 
-  $html.parent()
-    .find(".dialog-buttons, .form-footer, .dialog-button-group")
+  html.parent()
+    .find(".dialog-buttons")
     .css({
       display: "flex",
-      "flex-direction": "row",
       gap: "6px",
-      "justify-content": "flex-end",
-      "align-items": "center",
-      margin: "8px 0 0 0"
+      "justify-content":
+        "flex-end",
+      margin:
+        "8px 0 0 0"
     });
 
-  $html.parent()
-    .find(".dialog-buttons button, .form-footer button, .dialog-button-group button")
+  html.parent()
+    .find(
+      ".dialog-buttons button"
+    )
     .css({
       flex: "0 0 auto",
-      width: "auto",
       height: "28px",
-      padding: "0 10px",
-      "line-height": "28px",
+      padding:
+        "0 10px",
+      "line-height":
+        "28px",
       margin: 0
     });
 
@@ -174,285 +161,45 @@ function patchSceneCreateDialog() {
     .__evmPatched = true;
 }
 
-function patchSceneDeleteDialog() {
-
-  const originalStatic =
-    Scene.deleteDialog;
-
-  if (
-    typeof originalStatic ===
-    "function" &&
-    !Scene.deleteDialog
-      .__evmPatched
-  ) {
-
-    Scene.deleteDialog =
-      async function (...args) {
-
-        const warn =
-          game.settings.get(
-            MODULE_ID,
-            SETTINGS
-              .WARN_SCENE_DELETE
-          );
-
-        if (warn) {
-          return originalStatic
-            .apply(this, args);
-        }
-
-        const [
-          target,
-          options = {}
-        ] = args;
-
-        const ids = [];
-
-        const pushId =
-          value => {
-            if (
-              typeof value ===
-              "string" &&
-              value
-            ) ids.push(value);
-
-            else if (
-              value?.id
-            ) ids.push(
-              value.id
-            );
-          };
-
-        if (
-          Array.isArray(
-            target
-          )
-        ) {
-          target.forEach(
-            pushId
-          );
-        }
-
-        else {
-          pushId(target);
-        }
-
-        if (
-          !ids.length &&
-          Array.isArray(
-            options?.ids
-          )
-        ) {
-          options.ids.forEach(
-            pushId
-          );
-        }
-
-        if (!ids.length) {
-          return originalStatic
-            .apply(this, args);
-        }
-
-        return this
-          .deleteDocuments(
-            ids,
-            options
-          );
-      };
-
-    Scene.deleteDialog
-      .__evmPatched = true;
-  }
-
-  const originalProto =
-    Scene.prototype
-      .deleteDialog;
-
-  if (
-    typeof originalProto ===
-    "function" &&
-    !Scene.prototype
-      .deleteDialog
-      .__evmPatched
-  ) {
-
-    Scene.prototype
-      .deleteDialog =
-      async function (...args) {
-
-        const warn =
-          game.settings.get(
-            MODULE_ID,
-            SETTINGS
-              .WARN_SCENE_DELETE
-          );
-
-        if (warn) {
-          return originalProto
-            .apply(this, args);
-        }
-
-        return this.delete(
-          ...args
-        );
-      };
-
-    Scene.prototype
-      .deleteDialog
-      .__evmPatched = true;
-  }
-}
-
 function registerSettings() {
 
-  const localized = (
-    key,
-    type,
-    defaultValue
-  ) => ({
-    name:
-      `EVM.Settings.${key}.Name`,
-    hint:
-      `EVM.Settings.${key}.Hint`,
-    scope: "world",
-    config: true,
-    type,
-    default:
-      defaultValue
-  });
+  for (
+    const setting of [
+
+      [SETTINGS.DEFAULT_NAVIGATION, Boolean, true],
+      [SETTINGS.DEFAULT_BACKGROUND_COLOR, String, "#000000"],
+      [SETTINGS.DEFAULT_INITIAL_X, Number, 0],
+      [SETTINGS.DEFAULT_INITIAL_Y, Number, 0],
+      [SETTINGS.DEFAULT_INITIAL_ZOOM, Number, 1],
+      [SETTINGS.DEFAULT_WIDTH, Number, 4000],
+      [SETTINGS.DEFAULT_HEIGHT, Number, 3000],
+      [SETTINGS.DEFAULT_PADDING, Number, 0.25],
+      [SETTINGS.DEFAULT_TOKEN_VISION, Boolean, false],
+      [SETTINGS.BACKGROUND_IMAGE_DIRECTORY, String, ""]
+
+    ]
+  ) {
+
+    game.settings.register(
+      MODULE_ID,
+      setting[0],
+      {
+        scope: "world",
+        config: true,
+        type: setting[1],
+        default: setting[2]
+      }
+    );
+  }
 
   game.settings.register(
     MODULE_ID,
-    SETTINGS
-      .DEFAULT_NAVIGATION,
-    localized(
-      "DefaultNavigation",
-      Boolean,
-      true
-    )
-  );
-
-  game.settings.register(
-    MODULE_ID,
-    SETTINGS
-      .DEFAULT_BACKGROUND_COLOR,
-    localized(
-      "DefaultBackgroundColor",
-      String,
-      "#000000"
-    )
-  );
-
-  game.settings.register(
-    MODULE_ID,
-    SETTINGS
-      .DEFAULT_INITIAL_X,
-    localized(
-      "DefaultInitialX",
-      Number,
-      0
-    )
-  );
-
-  game.settings.register(
-    MODULE_ID,
-    SETTINGS
-      .DEFAULT_INITIAL_Y,
-    localized(
-      "DefaultInitialY",
-      Number,
-      0
-    )
-  );
-
-  game.settings.register(
-    MODULE_ID,
-    SETTINGS
-      .DEFAULT_INITIAL_ZOOM,
-    localized(
-      "DefaultInitialZoom",
-      Number,
-      1
-    )
-  );
-
-  game.settings.register(
-    MODULE_ID,
-    SETTINGS
-      .DEFAULT_WIDTH,
-    localized(
-      "DefaultWidth",
-      Number,
-      4000
-    )
-  );
-
-  game.settings.register(
-    MODULE_ID,
-    SETTINGS
-      .DEFAULT_HEIGHT,
-    localized(
-      "DefaultHeight",
-      Number,
-      3000
-    )
-  );
-
-  game.settings.register(
-    MODULE_ID,
-    SETTINGS
-      .DEFAULT_PADDING,
-    localized(
-      "DefaultPadding",
-      Number,
-      0.25
-    )
-  );
-
-  game.settings.register(
-    MODULE_ID,
-    SETTINGS
-      .DEFAULT_TOKEN_VISION,
-    localized(
-      "DefaultTokenVision",
-      Boolean,
-      false
-    )
-  );
-
-  game.settings.register(
-    MODULE_ID,
-    SETTINGS
-      .BACKGROUND_IMAGE_DIRECTORY,
-    localized(
-      "BackgroundImageDirectory",
-      String,
-      ""
-    )
-  );
-
-  game.settings.register(
-    MODULE_ID,
-    SETTINGS
-      .WARN_SCENE_DELETE,
-    localized(
-      "WarnSceneDelete",
-      Boolean,
-      true
-    )
-  );
-
-  game.settings.register(
-    MODULE_ID,
-    SETTINGS
-      .DEFAULT_GRID_TYPE,
+    SETTINGS.DEFAULT_GRID_TYPE,
     {
-      ...localized(
-        "DefaultGridType",
-        Number,
-        CONST.GRID_TYPES
-          .SQUARE
-      ),
+      scope: "world",
+      config: true,
+      type: Number,
+
       choices:
         Object.entries(
           CONST.GRID_TYPES
@@ -471,7 +218,11 @@ function registerSettings() {
 
           },
           {}
-        )
+        ),
+
+      default:
+        CONST.GRID_TYPES
+          .SQUARE
     }
   );
 }
@@ -486,110 +237,47 @@ function prepareSceneData(
         data
       );
 
-  const defaults = {
-    navigation:
-      game.settings.get(
-        MODULE_ID,
-        SETTINGS
-          .DEFAULT_NAVIGATION
-      ),
-    backgroundColor:
-      game.settings.get(
-        MODULE_ID,
-        SETTINGS
-          .DEFAULT_BACKGROUND_COLOR
-      ),
-    width:
-      game.settings.get(
-        MODULE_ID,
-        SETTINGS
-          .DEFAULT_WIDTH
-      ),
-    height:
-      game.settings.get(
-        MODULE_ID,
-        SETTINGS
-          .DEFAULT_HEIGHT
-      ),
-    padding:
-      game.settings.get(
-        MODULE_ID,
-        SETTINGS
-          .DEFAULT_PADDING
-      ),
-    tokenVision:
-      game.settings.get(
-        MODULE_ID,
-        SETTINGS
-          .DEFAULT_TOKEN_VISION
-      ),
-    initialX:
-      game.settings.get(
-        MODULE_ID,
-        SETTINGS
-          .DEFAULT_INITIAL_X
-      ),
-    initialY:
-      game.settings.get(
-        MODULE_ID,
-        SETTINGS
-          .DEFAULT_INITIAL_Y
-      ),
-    initialScale:
-      game.settings.get(
-        MODULE_ID,
-        SETTINGS
-          .DEFAULT_INITIAL_ZOOM
-      ),
-    gridType:
-      game.settings.get(
-        MODULE_ID,
-        SETTINGS
-          .DEFAULT_GRID_TYPE
-      )
-  };
-
   prepared.navigation ??=
-    defaults.navigation;
+    game.settings.get(
+      MODULE_ID,
+      SETTINGS
+        .DEFAULT_NAVIGATION
+    );
 
   prepared.backgroundColor ??=
-    defaults.backgroundColor;
+    game.settings.get(
+      MODULE_ID,
+      SETTINGS
+        .DEFAULT_BACKGROUND_COLOR
+    );
 
   prepared.width ??=
-    defaults.width;
+    game.settings.get(
+      MODULE_ID,
+      SETTINGS
+        .DEFAULT_WIDTH
+    );
 
   prepared.height ??=
-    defaults.height;
+    game.settings.get(
+      MODULE_ID,
+      SETTINGS
+        .DEFAULT_HEIGHT
+    );
 
   prepared.padding ??=
-    defaults.padding;
+    game.settings.get(
+      MODULE_ID,
+      SETTINGS
+        .DEFAULT_PADDING
+    );
 
   prepared.tokenVision ??=
-    defaults.tokenVision;
-
-  if (
-    !prepared.initial ||
-    typeof prepared.initial !==
-      "object"
-  ) {
-    prepared.initial = {};
-  }
-  prepared.initial.x ??=
-    defaults.initialX;
-  prepared.initial.y ??=
-    defaults.initialY;
-  prepared.initial.scale ??=
-    defaults.initialScale;
-
-  if (
-    !prepared.grid ||
-    typeof prepared.grid !==
-      "object"
-  ) {
-    prepared.grid = {};
-  }
-  prepared.grid.type ??=
-    defaults.gridType;
+    game.settings.get(
+      MODULE_ID,
+      SETTINGS
+        .DEFAULT_TOKEN_VISION
+    );
 
   return prepared;
 }
@@ -683,10 +371,9 @@ None
 ${
 playlists.map(
 p =>
-createOptionMarkup(
-  p.id,
-  p.name
-)
+`<option value="${p.id}">
+${p.name}
+</option>`
 ).join("")
 }
 
@@ -699,31 +386,29 @@ createOptionMarkup(
   const createScene =
     async html => {
 
-    const $html = asJQuery(html);
-
     let name =
-      $html.find(
+      html.find(
         "#evm-scene-name"
       )
       .val()
       ?.trim() ?? "";
 
     const folder =
-      $html.find(
+      html.find(
         "#evm-scene-folder"
       )
       .val() ||
       null;
 
     const image =
-      $html.find(
+      html.find(
         "#evm-scene-background"
       )
       .val() ||
       "";
 
     const playlist =
-      $html.find(
+      html.find(
         "#evm-scene-playlist"
       )
       .val() ||
@@ -778,10 +463,6 @@ createOptionMarkup(
 
       const d =
         new Dialog({
-
-        classes: [
-          "evm-create-scene-dialog"
-        ],
 
         title:
           "Create New Scene",
@@ -893,7 +574,7 @@ async function buildImageChoices(
       files.length
     ) {
       choices.push(
-`<optgroup label="${escapeAttribute(group)}">`
+`<optgroup label="${decodeURIComponent(group)}">`
       );
     }
 
@@ -903,10 +584,9 @@ async function buildImageChoices(
     ) {
 
       choices.push(
-createOptionMarkup(
-  file,
-  displayFileName(file)
-)
+`<option value="${file}">
+${displayFileName(file)}
+</option>`
       );
     }
 
@@ -965,44 +645,19 @@ None
     )
     .map(
       f =>
-createOptionMarkup(
-  f.id,
-  f.name
-)
+`<option value="${f.id}">
+${f.name}
+</option>`
     )
 
   ].join("");
-}
-
-function createOptionMarkup(
-  value,
-  label
-) {
-
-  return `<option value="${escapeAttribute(value)}">
-${escapeHtml(label)}
-</option>`;
-}
-
-function safeDecodeURIComponent(
-  value
-) {
-
-  try {
-    return decodeURIComponent(
-      value
-    );
-  }
-  catch {
-    return value;
-  }
 }
 
 function displayFileName(
   path
 ) {
 
-  return safeDecodeURIComponent(
+  return decodeURIComponent(
     fileName(
       path
     )
@@ -1023,46 +678,9 @@ function fileName(
     path;
 }
 
-function escapeAttribute(
-  value
-) {
-
-  return String(
-    value ?? ""
-  )
-  .replace(
-    /&/g,
-    "&amp;"
-  )
-  .replace(
-    /"/g,
-    "&quot;"
-  )
-  .replace(
-    /'/g,
-    "&#39;"
-  )
-  .replace(
-    /</g,
-    "&lt;"
-  )
-  .replace(
-    />/g,
-    "&gt;"
-  );
-}
-
-function escapeHtml(
-  value
-) {
-
-  return TextEditor
-    .escapeHTML(
-      String(
-        value ?? ""
-      )
-    );
-}
+function addBackgroundDirectoryBrowseButton(
+  html
+) {}
 
 function formatGridTypeLabel(
   name
@@ -1079,11 +697,4 @@ function formatGridTypeLabel(
       c =>
         c.toUpperCase()
     );
-}
-
-function asJQuery(
-  html
-) {
-
-  return html?.jquery ? html : $(html);
 }
