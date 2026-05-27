@@ -36,9 +36,15 @@ function patchSceneCreateDialog() {
   if (typeof originalCreateDialog !== "function") return;
   if (Scene.createDialog.__evmPatched) return;
 
-  const patchedCreateDialog = function (...args) {
+  const patchedCreateDialog = async function (...args) {
     ui.notifications.info("i clicked new scene");
-    return showCreateSceneDialog(...args);
+    try {
+      return await showCreateSceneDialog();
+    } catch (error) {
+      console.error(`${MODULE_ID} | Failed to open custom create scene dialog`, error);
+      ui.notifications.error("Could not open custom scene dialog. Opening default create dialog instead.");
+      return originalCreateDialog.apply(this, args);
+    }
   };
 
   patchedCreateDialog.__evmPatched = true;
@@ -303,7 +309,8 @@ async function showCreateSceneDialog() {
 }
 
 function getFolderChoices(selectedFolderId = null) {
-  const folders = game.folders.contents
+  const folderCollection = game.folders?.contents ?? (game.folders ? Array.from(game.folders) : []);
+  const folders = folderCollection
     .filter(folder => folder.type === "Scene")
     .sort((a, b) => a.name.localeCompare(b.name));
 
