@@ -269,6 +269,54 @@ async function showCreateSceneDialog() {
     </form>
   `;
 
+  // Retrieve a form field value from any Foundry dialog callback argument:
+  // jQuery wrapper (v11/v12), native HTMLElement, or ApplicationV2 instance (v13+).
+  const getFieldValue = (container, id) => {
+    if (typeof container?.find === "function") return container.find(`#${id}`).val() ?? "";
+    const el = container instanceof Element ? container : container?.element ?? container?.[0];
+    return el?.querySelector?.(`#${id}`)?.value ?? "";
+  };
+
+  const createScene = async container => {
+    const enteredName = getFieldValue(container, "evm-scene-name").trim();
+    if (!enteredName) {
+      ui.notifications.warn(game.i18n.localize("EVM.NameRequired"));
+      return null;
+    }
+    const selectedFolder = getFieldValue(container, "evm-scene-folder") || null;
+    const selectedImage = getFieldValue(container, "evm-scene-background") || "";
+    const sceneData = { name: enteredName, folder: selectedFolder };
+    if (selectedImage) sceneData.background = { src: selectedImage };
+    return Scene.create(prepareSceneData(sceneData));
+  };
+
+  // Foundry v13+ removed Dialog in favour of DialogV2.
+  const DialogV2 = foundry?.applications?.api?.DialogV2;
+  if (DialogV2) {
+    return DialogV2.wait({
+      window: { title: game.i18n.localize("SCENES.Create") },
+      content,
+      rejectClose: false,
+      render: (_event, app) => app.element?.querySelector("#evm-scene-name")?.focus(),
+      buttons: [
+        {
+          action: "create",
+          icon: "fas fa-check",
+          label: game.i18n.localize("SCENES.Create"),
+          default: true,
+          callback: (_event, _button, app) => createScene(app)
+        },
+        {
+          action: "cancel",
+          icon: "fas fa-times",
+          label: game.i18n.localize("Cancel"),
+          callback: () => null
+        }
+      ]
+    });
+  }
+
+  // Classic Dialog — Foundry v11/v12.
   return new Promise(resolve => {
     const d = new Dialog({
       title: game.i18n.localize("SCENES.Create"),
@@ -277,22 +325,7 @@ async function showCreateSceneDialog() {
         create: {
           icon: '<i class="fas fa-check"></i>',
           label: game.i18n.localize("SCENES.Create"),
-          callback: async html => {
-            const enteredName = html.find("#evm-scene-name").val().trim();
-            if (!enteredName) {
-              ui.notifications.warn(game.i18n.localize("EVM.NameRequired"));
-              resolve(null);
-              return;
-            }
-
-            const selectedFolder = html.find("#evm-scene-folder").val() || null;
-            const selectedImage = html.find("#evm-scene-background").val() || "";
-
-            const sceneData = { name: enteredName, folder: selectedFolder };
-            if (selectedImage) sceneData.background = { src: selectedImage };
-
-            resolve(await Scene.create(prepareSceneData(sceneData)));
-          }
+          callback: async html => resolve(await createScene(html))
         },
         cancel: {
           icon: '<i class="fas fa-times"></i>',
@@ -302,7 +335,12 @@ async function showCreateSceneDialog() {
       },
       default: "create",
       close: () => resolve(null),
-      render: html => html.find("#evm-scene-name").trigger("focus")
+      render: html => {
+        const el = (typeof html?.find === "function")
+          ? html.find("#evm-scene-name")[0]
+          : html?.querySelector?.("#evm-scene-name");
+        el?.focus();
+      }
     });
     d.render(true);
   });
